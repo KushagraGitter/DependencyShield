@@ -1,6 +1,6 @@
 import { Project, Node, SyntaxKind } from "ts-morph";
 import { parse } from "@babel/parser";
-import * as traverse from "@babel/traverse";
+import traverse from "@babel/traverse";
 import * as t from "@babel/types";
 
 export interface ASTAnalysisResult {
@@ -163,13 +163,13 @@ async function analyzeJavaScriptFile(
       ],
     });
 
-    const traverseFunction = traverse.default || traverse;
-    if (typeof traverseFunction !== 'function') {
-      console.error('Babel traverse not available, skipping JavaScript AST analysis');
-      return { transformations: [] };
+    // Use traverse directly - it should work with proper import
+    if (!traverse || typeof traverse !== 'function') {
+      console.warn(`Skipping JavaScript AST analysis for ${file.path} - traverse function not available`);
+      return;
     }
     
-    traverseFunction(ast, {
+    traverse(ast, {
       ImportDeclaration(path: any) {
         codeMetrics.totalImports++;
         const source = path.node.source.value;

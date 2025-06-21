@@ -27,17 +27,28 @@ export async function generateMigrationSuggestions(
   codeUsage?: any
 ): Promise<MigrationAnalysis[]> {
   try {
+    // Limit data to avoid token limits
+    const limitedVulns = vulnerabilities.slice(0, 8).map(v => ({
+      package: v.package,
+      severity: v.severity,
+      description: v.description?.substring(0, 150),
+      cve: v.cve,
+      fixedIn: v.fixedIn
+    }));
+
+    const limitedDeps = Object.keys(packageJson.dependencies || {}).slice(0, 15).reduce((acc, key) => {
+      acc[key] = packageJson.dependencies[key];
+      return acc;
+    }, {});
+
     const prompt = `
-You are an expert Node.js security consultant. Analyze the following vulnerability data and provide migration suggestions.
+You are an expert Node.js security consultant. Analyze vulnerabilities and provide migration suggestions.
 
-Package.json dependencies:
-${JSON.stringify(packageJson.dependencies || {}, null, 2)}
+Dependencies:
+${JSON.stringify(limitedDeps, null, 2)}
 
-Vulnerabilities found:
-${JSON.stringify(vulnerabilities, null, 2)}
-
-Code usage patterns (if available):
-${codeUsage ? JSON.stringify(codeUsage, null, 2) : 'No code analysis available'}
+Vulnerabilities:
+${JSON.stringify(limitedVulns, null, 2)}
 
 Provide migration suggestions in JSON format with the following structure:
 {
