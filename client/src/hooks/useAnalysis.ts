@@ -37,7 +37,7 @@ export function useAnalysis() {
       formData.append('packageJson', files.packageJson);
       
       files.sourceFiles.forEach(file => {
-        formData.append('sourceFiles', file);
+        formData.append('sourceCode', file);
       });
 
       // Simulate progress updates

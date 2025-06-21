@@ -15,24 +15,21 @@ import { storage } from "./storage";
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 50 * 1024 * 1024 },
+  limits: { 
+    fileSize: 50 * 1024 * 1024,
+    files: 101 // 1 package.json + up to 100 source files
+  },
   fileFilter: (req, file, cb) => {
-    const allowedTypes = [
-      'application/json',
-      'text/plain',
-      'application/javascript',
-      'text/javascript',
-      'application/typescript',
-      'text/typescript',
-    ];
+    console.log('Processing file:', file.fieldname, file.originalname, file.mimetype);
     
     const allowedExtensions = ['.json', '.js', '.ts', '.jsx', '.tsx', '.mjs'];
     const fileExtension = path.extname(file.originalname).toLowerCase();
     
-    if (allowedTypes.includes(file.mimetype) || allowedExtensions.includes(fileExtension)) {
+    // Accept any file with allowed extensions regardless of MIME type
+    if (allowedExtensions.includes(fileExtension)) {
       cb(null, true);
     } else {
-      cb(new Error('Invalid file type. Only package.json and source files are allowed.'));
+      cb(new Error(`Invalid file type: ${file.originalname}. Only .json, .js, .ts, .jsx, .tsx, .mjs files are allowed.`));
     }
   }
 });
