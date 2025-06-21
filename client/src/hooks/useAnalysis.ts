@@ -23,22 +23,27 @@ export function useAnalysis() {
   const [uploadedFiles, setUploadedFiles] = useState<{
     packageJson?: File;
     sourceFiles: File[];
+    zipFile?: File;
   }>({ sourceFiles: [] });
   
   const [progress, setProgress] = useState<AnalysisProgress | null>(null);
 
   const analysismutation = useMutation({
     mutationFn: async ({ files, options }: { files: typeof uploadedFiles; options: AnalysisOptions }) => {
-      if (!files.packageJson) {
-        throw new Error("package.json file is required");
+      if (!files.packageJson && !files.zipFile) {
+        throw new Error("Either package.json file or ZIP file is required");
       }
 
       const formData = new FormData();
-      formData.append('packageJson', files.packageJson);
       
-      files.sourceFiles.forEach(file => {
-        formData.append('sourceCode', file);
-      });
+      if (files.zipFile) {
+        formData.append('projectZip', files.zipFile);
+      } else {
+        formData.append('packageJson', files.packageJson!);
+        files.sourceFiles.forEach(file => {
+          formData.append('sourceCode', file);
+        });
+      }
 
       // Simulate progress updates
       setProgress({
@@ -105,17 +110,17 @@ export function useAnalysis() {
     }
   });
 
-  const uploadFiles = useCallback((files: { packageJson?: File; sourceFiles: File[] }) => {
+  const uploadFiles = useCallback((files: { packageJson?: File; sourceFiles: File[]; zipFile?: File }) => {
     setUploadedFiles(files);
   }, []);
 
   const startAnalysis = useCallback((options: AnalysisOptions) => {
-    if (!uploadedFiles.packageJson) return;
+    if (!uploadedFiles.packageJson && !uploadedFiles.zipFile) return;
     
     analysismutation.mutate({ files: uploadedFiles, options });
   }, [uploadedFiles, analysismutation]);
 
-  const canStartAnalysis = uploadedFiles.packageJson !== undefined;
+  const canStartAnalysis = uploadedFiles.packageJson !== undefined || uploadedFiles.zipFile !== undefined;
 
   return {
     uploadFiles,

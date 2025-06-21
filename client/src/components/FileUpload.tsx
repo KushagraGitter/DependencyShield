@@ -1,32 +1,34 @@
 import { useState, useRef, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileCode, FolderOpen, Upload, X } from "lucide-react";
+import { FileCode, FolderOpen, Upload, X, Archive } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface FileUploadProps {
-  onFilesChange: (files: { packageJson?: File; sourceFiles: File[] }) => void;
+  onFilesChange: (files: { packageJson?: File; sourceFiles: File[]; zipFile?: File }) => void;
 }
 
 export function FileUpload({ onFilesChange }: FileUploadProps) {
   const [packageJsonFile, setPackageJsonFile] = useState<File | null>(null);
   const [sourceFiles, setSourceFiles] = useState<File[]>([]);
+  const [zipFile, setZipFile] = useState<File | null>(null);
   const [dragOver, setDragOver] = useState<string | null>(null);
 
   const packageJsonInputRef = useRef<HTMLInputElement>(null);
   const sourceFilesInputRef = useRef<HTMLInputElement>(null);
+  const zipInputRef = useRef<HTMLInputElement>(null);
 
   const handlePackageJsonUpload = useCallback((files: FileList | null) => {
     if (files && files.length > 0) {
       const file = files[0];
       if (file.name === 'package.json' || file.name.endsWith('.json')) {
         setPackageJsonFile(file);
-        onFilesChange({ packageJson: file, sourceFiles });
+        onFilesChange({ packageJson: file, sourceFiles, zipFile });
       } else {
         alert('Please select a valid package.json file');
       }
     }
-  }, [sourceFiles, onFilesChange]);
+  }, [sourceFiles, zipFile, onFilesChange]);
 
   const handleSourceFilesUpload = useCallback((files: FileList | null) => {
     if (files) {
@@ -42,36 +44,58 @@ export function FileUpload({ onFilesChange }: FileUploadProps) {
       if (validFiles.length > 0) {
         setSourceFiles(prev => {
           const newFiles = [...prev, ...validFiles];
-          onFilesChange({ packageJson: packageJsonFile, sourceFiles: newFiles });
+          onFilesChange({ packageJson: packageJsonFile, sourceFiles: newFiles, zipFile });
           return newFiles;
         });
       } else {
         alert('Please select valid source files (.js, .ts, .jsx, .tsx, .mjs)');
       }
     }
-  }, [packageJsonFile, onFilesChange]);
+  }, [packageJsonFile, zipFile, onFilesChange]);
+
+  const handleZipUpload = useCallback((files: FileList | null) => {
+    if (files && files.length > 0) {
+      const file = files[0];
+      if (file.name.endsWith('.zip')) {
+        setZipFile(file);
+        // Clear individual files when zip is uploaded
+        setPackageJsonFile(null);
+        setSourceFiles([]);
+        onFilesChange({ zipFile: file, sourceFiles: [] });
+      } else {
+        alert('Please select a valid ZIP file');
+      }
+    }
+  }, [onFilesChange]);
 
   const removeSourceFile = useCallback((index: number) => {
     setSourceFiles(prev => {
       const newFiles = prev.filter((_, i) => i !== index);
-      onFilesChange({ packageJson: packageJsonFile, sourceFiles: newFiles });
+      onFilesChange({ packageJson: packageJsonFile, sourceFiles: newFiles, zipFile });
       return newFiles;
     });
-  }, [packageJsonFile, onFilesChange]);
+  }, [packageJsonFile, zipFile, onFilesChange]);
 
-  const handleDrop = useCallback((e: React.DragEvent, type: 'package' | 'source') => {
+  const removeZipFile = useCallback(() => {
+    setZipFile(null);
+    onFilesChange({ packageJson: packageJsonFile, sourceFiles, zipFile: undefined });
+  }, [packageJsonFile, sourceFiles, onFilesChange]);
+
+  const handleDrop = useCallback((e: React.DragEvent, type: 'package' | 'source' | 'zip') => {
     e.preventDefault();
     setDragOver(null);
     
     const files = e.dataTransfer.files;
     if (type === 'package') {
       handlePackageJsonUpload(files);
-    } else {
+    } else if (type === 'source') {
       handleSourceFilesUpload(files);
+    } else if (type === 'zip') {
+      handleZipUpload(files);
     }
-  }, [handlePackageJsonUpload, handleSourceFilesUpload]);
+  }, [handlePackageJsonUpload, handleSourceFilesUpload, handleZipUpload]);
 
-  const handleDragOver = useCallback((e: React.DragEvent, type: 'package' | 'source') => {
+  const handleDragOver = useCallback((e: React.DragEvent, type: 'package' | 'source' | 'zip') => {
     e.preventDefault();
     setDragOver(type);
   }, []);
@@ -82,7 +106,70 @@ export function FileUpload({ onFilesChange }: FileUploadProps) {
   }, []);
 
   return (
-    <div className="grid md:grid-cols-2 gap-6">
+    <div className="space-y-6">
+      {/* ZIP Upload Option */}
+      <Card 
+        className={cn(
+          "border-2 border-dashed transition-colors cursor-pointer",
+          dragOver === 'zip' ? "border-purple-400 bg-purple-50" : "border-slate-300 hover:border-purple-400"
+        )}
+        onDrop={(e) => handleDrop(e, 'zip')}
+        onDragOver={(e) => handleDragOver(e, 'zip')}
+        onDragLeave={handleDragLeave}
+        onClick={() => zipInputRef.current?.click()}
+      >
+        <CardContent className="p-8 text-center">
+          <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Archive className="text-purple-600 w-6 h-6" />
+          </div>
+          <h3 className="font-semibold text-slate-900 mb-2">Project ZIP File</h3>
+          {zipFile ? (
+            <div className="space-y-2">
+              <div className="flex items-center justify-center space-x-2">
+                <p className="text-sm text-green-600 font-medium">{zipFile.name}</p>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    removeZipFile();
+                  }}
+                  className="h-6 w-6 p-0 text-slate-500 hover:text-red-600"
+                >
+                  <X className="w-3 h-3" />
+                </Button>
+              </div>
+              <p className="text-xs text-slate-500">{(zipFile.size / 1024 / 1024).toFixed(1)} MB</p>
+              <p className="text-xs text-green-600">ZIP file will be extracted and analyzed automatically</p>
+            </div>
+          ) : (
+            <>
+              <p className="text-sm text-slate-600 mb-4">Upload entire project as ZIP (includes package.json and source files)</p>
+              <Button className="bg-purple-600 hover:bg-purple-700">
+                Choose ZIP File
+              </Button>
+              <p className="text-xs text-slate-500 mt-2">or drag and drop here</p>
+            </>
+          )}
+          <input
+            ref={zipInputRef}
+            type="file"
+            accept=".zip"
+            onChange={(e) => handleZipUpload(e.target.files)}
+            className="hidden"
+          />
+        </CardContent>
+      </Card>
+
+      {!zipFile && (
+        <>
+          <div className="text-center">
+            <div className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-600">
+              OR upload files individually
+            </div>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-6">
       {/* Package.json Upload */}
       <Card 
         className={cn(
@@ -178,6 +265,9 @@ export function FileUpload({ onFilesChange }: FileUploadProps) {
           />
         </CardContent>
       </Card>
+          </div>
+        </>
+      )}
     </div>
   );
 }

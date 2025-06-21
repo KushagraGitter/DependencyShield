@@ -4,6 +4,7 @@ import { createServer, type Server } from "http";
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
+import yauzl from "yauzl";
 import { runNpmAudit } from "./services/npmAudit";
 import { analyzeCodeUsage } from "./services/codeAnalysis";
 import { performASTAnalysis } from "./services/astAnalysis";
@@ -22,14 +23,14 @@ const upload = multer({
   fileFilter: (req, file, cb) => {
     console.log('Processing file:', file.fieldname, file.originalname, file.mimetype);
     
-    const allowedExtensions = ['.json', '.js', '.ts', '.jsx', '.tsx', '.mjs'];
+    const allowedExtensions = ['.json', '.js', '.ts', '.jsx', '.tsx', '.mjs', '.zip'];
     const fileExtension = path.extname(file.originalname).toLowerCase();
     
-    // Accept any file with allowed extensions regardless of MIME type
+    // Accept files with allowed extensions regardless of MIME type
     if (allowedExtensions.includes(fileExtension)) {
       cb(null, true);
     } else {
-      cb(new Error(`Invalid file type: ${file.originalname}. Only .json, .js, .ts, .jsx, .tsx, .mjs files are allowed.`));
+      cb(new Error(`Invalid file type: ${file.originalname}. Only .json, .js, .ts, .jsx, .tsx, .mjs, .zip files are allowed.`));
     }
   }
 });
@@ -163,26 +164,121 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ZIP extraction helper function
+  async function extractZipFile(zipBuffer: Buffer, tempDir: string): Promise<{ packageJsonContent?: string; sourceFiles: { name: string; content: string }[] }> {
+    return new Promise((resolve, reject) => {
+      yauzl.fromBuffer(zipBuffer, { lazyEntries: true }, (err, zipfile) => {
+        if (err) return reject(err);
+        
+        const sourceFiles: { name: string; content: string }[] = [];
+        let packageJsonContent: string | undefined;
+        
+        zipfile.readEntry();
+        
+        zipfile.on("entry", (entry: any) => {
+          if (/\/$/.test(entry.fileName)) {
+            // Directory entry, skip
+            zipfile.readEntry();
+            return;
+          }
+          
+          // Skip node_modules and hidden files
+          if (entry.fileName.includes('node_modules/') || 
+              entry.fileName.includes('/.') ||
+              entry.fileName.startsWith('.')) {
+            zipfile.readEntry();
+            return;
+          }
+          
+          zipfile.openReadStream(entry, (err: any, readStream: any) => {
+            if (err) return reject(err);
+            
+            const chunks: Buffer[] = [];
+            readStream.on('data', (chunk: Buffer) => chunks.push(chunk));
+            readStream.on('end', () => {
+              const content = Buffer.concat(chunks).toString('utf8');
+              const fileName = path.basename(entry.fileName);
+              
+              if (fileName === 'package.json') {
+                packageJsonContent = content;
+              } else if (/\.(js|ts|jsx|tsx|mjs)$/.test(fileName)) {
+                sourceFiles.push({
+                  name: entry.fileName,
+                  content
+                });
+              }
+              
+              zipfile.readEntry();
+            });
+          });
+        });
+        
+        zipfile.on("end", () => {
+          resolve({ packageJsonContent, sourceFiles });
+        });
+        
+        zipfile.on("error", reject);
+      });
+    });
+  }
+
   // File upload endpoint  
   app.post("/api/analyze", upload.fields([
     { name: 'packageJson', maxCount: 1 },
-    { name: 'sourceCode', maxCount: 100 }
+    { name: 'sourceCode', maxCount: 100 },
+    { name: 'projectZip', maxCount: 1 }
   ]), async (req: Request, res: Response) => {
     try {
       const files = req.files as { [fieldname: string]: Express.Multer.File[] } || {};
       
-      if (!files.packageJson || files.packageJson.length === 0) {
-        return res.status(400).json({ error: "package.json file is required" });
-      }
-
-      const packageJsonFile = files.packageJson[0];
       let packageJsonContent: string;
+      let sourceFiles: { name: string; content: string }[] = [];
       
-      try {
-        packageJsonContent = packageJsonFile.buffer.toString('utf-8');
-        JSON.parse(packageJsonContent);
-      } catch (error) {
-        return res.status(400).json({ error: "Invalid package.json file" });
+      // Handle ZIP file upload
+      if (files.projectZip && files.projectZip.length > 0) {
+        const zipFile = files.projectZip[0];
+        console.log('Processing ZIP file:', zipFile.originalname, zipFile.size);
+        
+        try {
+          const extracted = await extractZipFile(zipFile.buffer, '');
+          
+          if (!extracted.packageJsonContent) {
+            return res.status(400).json({ error: "No package.json found in ZIP file" });
+          }
+          
+          packageJsonContent = extracted.packageJsonContent;
+          sourceFiles = extracted.sourceFiles;
+          
+          // Validate package.json
+          JSON.parse(packageJsonContent);
+          
+          console.log(`Extracted ${sourceFiles.length} source files from ZIP`);
+        } catch (error) {
+          console.error('ZIP extraction failed:', error);
+          return res.status(400).json({ error: "Failed to extract ZIP file" });
+        }
+      } else {
+        // Handle individual file uploads
+        if (!files.packageJson || files.packageJson.length === 0) {
+          return res.status(400).json({ error: "package.json file or ZIP file is required" });
+        }
+
+        const packageJsonFile = files.packageJson[0];
+        
+        try {
+          packageJsonContent = packageJsonFile.buffer.toString('utf-8');
+          JSON.parse(packageJsonContent);
+        } catch (error) {
+          return res.status(400).json({ error: "Invalid package.json file" });
+        }
+        
+        // Process individual source files
+        if (files.sourceCode && files.sourceCode.length > 0) {
+          sourceFiles = files.sourceCode.map(file => ({
+            name: file.originalname,
+            content: file.buffer.toString('utf-8')
+          }));
+        }
       }
 
       const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'depguard-'));
@@ -193,12 +289,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Process source files if provided
         let codeAnalysis: any = null;
         let astAnalysis: any = null;
-        if (files.sourceCode && files.sourceCode.length > 0) {
-          const sourceFiles = files.sourceCode.map(file => ({
-            name: file.originalname,
-            content: file.buffer.toString('utf-8')
-          }));
-          
+        if (sourceFiles.length > 0) {
           const packageJson = JSON.parse(packageJsonContent);
           const dependencies = { ...packageJson.dependencies, ...packageJson.devDependencies };
           
