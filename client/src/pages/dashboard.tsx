@@ -9,6 +9,7 @@ import { VulnerabilityDashboard } from "@/components/VulnerabilityDashboard";
 import { VulnerabilityList } from "@/components/VulnerabilityList";
 import { AIMigrationSuggestions } from "@/components/AIMigrationSuggestions";
 import { AutomatedMigrationGuide } from "@/components/AutomatedMigrationGuide";
+import { RealTimeVulnerabilityChecker } from "@/components/RealTimeVulnerabilityChecker";
 import { useAnalysis } from "@/hooks/useAnalysis";
 
 export default function Dashboard() {
@@ -139,6 +140,9 @@ export default function Dashboard() {
             )}
           </>
         )}
+
+        {/* Real-Time Vulnerability Checker */}
+        <RealTimeVulnerabilityChecker />
       </div>
     </div>
   );

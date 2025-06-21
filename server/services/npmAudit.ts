@@ -4,6 +4,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { Vulnerability, SecurityMetrics } from '@shared/schema';
 import { enrichVulnerabilityWithCVE } from './cveService';
+import { realtimeVulnerabilityService } from './realtimeVulnerabilityService';
 
 const execAsync = promisify(exec);
 
@@ -47,50 +48,22 @@ export async function runNpmAudit(packageJsonContent: string, tempDir: string): 
   } catch (error) {
     console.error('NPM audit failed:', error);
     
-    // Fallback: create mock vulnerabilities for testing based on known vulnerable packages
+    // Fallback: use real-time vulnerability services
     const packageData = JSON.parse(packageJsonContent);
-    const mockVulnerabilities = createMockVulnerabilities(packageData);
+    const dependencies = { ...packageData.dependencies, ...packageData.devDependencies };
+    
+    console.log('Falling back to real-time vulnerability services...');
+    const realtimeVulnerabilities = await realtimeVulnerabilityService.fetchVulnerabilitiesForPackages(dependencies);
     
     return {
-      vulnerabilities: mockVulnerabilities,
-      metrics: calculateMetricsFromVulns(mockVulnerabilities),
+      vulnerabilities: realtimeVulnerabilities,
+      metrics: calculateMetricsFromVulns(realtimeVulnerabilities),
       advisories: []
     };
   }
 }
 
-function createMockVulnerabilities(packageData: any): any[] {
-  const vulnerablePackages = {
-    'lodash': { version: '4.17.19', severity: 'high', cve: 'CVE-2021-23337' },
-    'moment': { version: '2.24.0', severity: 'high', cve: 'CVE-2022-31129' },
-    'axios': { version: '0.18.0', severity: 'critical', cve: 'CVE-2020-28168' },
-    'express': { version: '4.16.0', severity: 'moderate', cve: 'CVE-2022-24999' },
-    'jsonwebtoken': { version: '8.5.1', severity: 'high', cve: 'CVE-2022-23529' },
-    'serialize-javascript': { version: '3.1.0', severity: 'critical', cve: 'CVE-2020-7660' },
-    'minimist': { version: '1.2.0', severity: 'moderate', cve: 'CVE-2020-7598' }
-  };
-
-  const vulnerabilities = [];
-  const dependencies = { ...packageData.dependencies, ...packageData.devDependencies };
-
-  Object.entries(dependencies).forEach(([pkg, version]) => {
-    if (vulnerablePackages[pkg]) {
-      const vuln = vulnerablePackages[pkg];
-      vulnerabilities.push({
-        id: `vuln-${pkg}-${Date.now()}`,
-        package: pkg,
-        version: version as string,
-        severity: vuln.severity,
-        description: `Known vulnerability in ${pkg} ${version}`,
-        cve: vuln.cve,
-        cvss: vuln.severity === 'critical' ? 9.1 : vuln.severity === 'high' ? 7.5 : 5.3,
-        fixedIn: 'latest'
-      });
-    }
-  });
-
-  return vulnerabilities;
-}
+// Removed mock vulnerability function - now using real-time services
 
 function calculateMetricsFromVulns(vulnerabilities: any[]): any {
   const metrics = { critical: 0, high: 0, moderate: 0, low: 0, total: vulnerabilities.length };

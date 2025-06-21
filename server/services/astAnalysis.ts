@@ -163,7 +163,13 @@ async function analyzeJavaScriptFile(
       ],
     });
 
-    (traverse.default || traverse)(ast, {
+    const traverseFunction = traverse.default || traverse;
+    if (typeof traverseFunction !== 'function') {
+      console.error('Babel traverse not available, skipping JavaScript AST analysis');
+      return { transformations: [] };
+    }
+    
+    traverseFunction(ast, {
       ImportDeclaration(path: any) {
         codeMetrics.totalImports++;
         const source = path.node.source.value;
