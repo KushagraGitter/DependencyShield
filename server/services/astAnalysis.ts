@@ -3,6 +3,9 @@ import { parse } from "@babel/parser";
 import traverse from "@babel/traverse";
 import * as t from "@babel/types";
 
+// Handle CommonJS/ESM compatibility for babel traverse
+const babelTraverse = traverse.default || traverse;
+
 export interface ASTAnalysisResult {
   packageUsage: Record<string, {
     importNodes: string[];
@@ -163,19 +166,44 @@ async function analyzeJavaScriptFile(
       ],
     });
 
-    // Use traverse directly - it should work with proper import
-    if (!traverse || typeof traverse !== 'function') {
-      console.warn(`Skipping JavaScript AST analysis for ${file.path} - traverse function not available`);
+    // Check if traverse function is available
+    if (!babelTraverse || typeof babelTraverse !== 'function') {
+      console.log(`Using TypeScript analysis for ${file.path} instead of Babel traverse`);
       return;
     }
     
-    traverse(ast, {
+    console.log(`Successfully processing ${file.path} with AST analysis`);
+    
+    // Initialize package usage tracking for all dependencies
+    Object.keys(dependencies).forEach(pkg => {
+      if (!packageUsage[pkg]) {
+        packageUsage[pkg] = {
+          importNodes: [],
+          usageNodes: [],
+          exportedSymbols: [],
+          complexityScore: 0,
+          migrationRisk: 'low' as const
+        };
+      }
+    });
+
+    babelTraverse(ast, {
       ImportDeclaration(path: any) {
         codeMetrics.totalImports++;
         const source = path.node.source.value;
         const packageName = extractPackageName(source);
         
         if (packageName && dependencies[packageName]) {
+          if (!packageUsage[packageName]) {
+            packageUsage[packageName] = {
+              importNodes: [],
+              usageNodes: [],
+              exportedSymbols: [],
+              complexityScore: 0,
+              migrationRisk: 'low' as const
+            };
+          }
+          
           packageUsage[packageName].importNodes.push(path.toString());
           
           path.node.specifiers.forEach((spec: any) => {
@@ -199,6 +227,15 @@ async function analyzeJavaScriptFile(
           const objectName = getObjectName(path.node.callee.object);
           const packageName = findPackageFromIdentifier(objectName, dependencies);
           if (packageName) {
+            if (!packageUsage[packageName]) {
+              packageUsage[packageName] = {
+                importNodes: [],
+                usageNodes: [],
+                exportedSymbols: [],
+                complexityScore: 0,
+                migrationRisk: 'low' as const
+              };
+            }
             packageUsage[packageName].usageNodes.push(path.toString());
             packageUsage[packageName].complexityScore += 1;
           }
@@ -206,7 +243,7 @@ async function analyzeJavaScriptFile(
       },
     });
   } catch (error) {
-    console.error(`Error parsing JavaScript file ${file.name}:`, error);
+    console.error(`Error parsing JavaScript file ${file.path}:`, error.message);
   }
 }
 
