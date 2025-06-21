@@ -1,0 +1,192 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: hsl(0, 0%, 100%);
+  --foreground: hsl(20, 14.3%, 4.1%);
+  --muted: hsl(60, 4.8%, 95.9%);
+  --muted-foreground: hsl(25, 5.3%, 44.7%);
+  --popover: hsl(0, 0%, 100%);
+  --popover-foreground: hsl(20, 14.3%, 4.1%);
+  --card: hsl(0, 0%, 100%);
+  --card-foreground: hsl(20, 14.3%, 4.1%);
+  --border: hsl(20, 5.9%, 90%);
+  --input: hsl(20, 5.9%, 90%);
+  --primary: hsl(207, 90%, 54%);
+  --primary-foreground: hsl(211, 100%, 99%);
+  --secondary: hsl(60, 4.8%, 95.9%);
+  --secondary-foreground: hsl(24, 9.8%, 10%);
+  --accent: hsl(60, 4.8%, 95.9%);
+  --accent-foreground: hsl(24, 9.8%, 10%);
+  --destructive: hsl(0, 84.2%, 60.2%);
+  --destructive-foreground: hsl(60, 9.1%, 97.8%);
+  --ring: hsl(20, 14.3%, 4.1%);
+  --radius: 0.5rem;
+
+  /* Custom colors for vulnerability severity */
+  --critical: hsl(7, 70%, 25%);
+  --high: hsl(0, 73%, 41%);
+  --moderate: hsl(30, 70%, 34%);
+  --low: hsl(161, 94%, 30%);
+}
+
+.dark {
+  --background: hsl(240, 10%, 3.9%);
+  --foreground: hsl(0, 0%, 98%);
+  --muted: hsl(240, 3.7%, 15.9%);
+  --muted-foreground: hsl(240, 5%, 64.9%);
+  --popover: hsl(240, 10%, 3.9%);
+  --popover-foreground: hsl(0, 0%, 98%);
+  --card: hsl(240, 10%, 3.9%);
+  --card-foreground: hsl(0, 0%, 98%);
+  --border: hsl(240, 3.7%, 15.9%);
+  --input: hsl(240, 3.7%, 15.9%);
+  --primary: hsl(207, 90%, 54%);
+  --primary-foreground: hsl(211, 100%, 99%);
+  --secondary: hsl(240, 3.7%, 15.9%);
+  --secondary-foreground: hsl(0, 0%, 98%);
+  --accent: hsl(240, 3.7%, 15.9%);
+  --accent-foreground: hsl(0, 0%, 98%);
+  --destructive: hsl(0, 62.8%, 30.6%);
+  --destructive-foreground: hsl(0, 0%, 98%);
+  --ring: hsl(240, 4.9%, 83.9%);
+  --radius: 0.5rem;
+
+  /* Dark mode vulnerability colors */
+  --critical: hsl(7, 70%, 45%);
+  --high: hsl(0, 73%, 51%);
+  --moderate: hsl(30, 70%, 44%);
+  --low: hsl(161, 94%, 40%);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply font-sans antialiased bg-background text-foreground;
+  }
+
+  /* Custom scrollbar styling */
+  ::-webkit-scrollbar {
+    @apply w-2;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-muted;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-border rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-muted-foreground;
+  }
+}
+
+@layer utilities {
+  .text-critical {
+    color: var(--critical);
+  }
+  
+  .text-high {
+    color: var(--high);
+  }
+  
+  .text-moderate {
+    color: var(--moderate);
+  }
+  
+  .text-low {
+    color: var(--low);
+  }
+  
+  .bg-critical {
+    background-color: var(--critical);
+  }
+  
+  .bg-high {
+    background-color: var(--high);
+  }
+  
+  .bg-moderate {
+    background-color: var(--moderate);
+  }
+  
+  .bg-low {
+    background-color: var(--low);
+  }
+
+  /* Animation utilities */
+  .animate-pulse-slow {
+    animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  .animate-bounce-gentle {
+    animation: bounce 2s infinite;
+  }
+
+  /* Gradient backgrounds */
+  .bg-gradient-security {
+    background: linear-gradient(135deg, var(--background) 0%, var(--muted) 100%);
+  }
+
+  /* Custom focus styles */
+  .focus-ring {
+    @apply focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:outline-none;
+  }
+
+  /* Typography utilities */
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+/* Component-specific styles */
+.vulnerability-card {
+  @apply transition-all duration-200 ease-in-out;
+}
+
+.vulnerability-card:hover {
+  @apply shadow-md scale-[1.02];
+  border-color: hsl(var(--primary) / 0.2);
+}
+
+.security-score-gradient {
+  background: linear-gradient(90deg, 
+    var(--destructive) 0%, 
+    var(--moderate) 40%, 
+    var(--low) 100%
+  );
+}
+
+/* File upload specific styles */
+.file-upload-zone {
+  @apply transition-all duration-300 ease-in-out;
+}
+
+.file-upload-zone.dragover {
+  @apply border-primary scale-105;
+  background-color: hsl(var(--primary) / 0.05);
+}
+
+/* Progress bar enhancements */
+.progress-bar {
+  @apply transition-all duration-500 ease-in-out;
+}
+
+/* Code syntax highlighting */
+.code-example {
+  @apply font-mono text-sm leading-relaxed;
+}
+
+.code-example .token.added {
+  @apply text-green-700 bg-green-50;
+}
+
+.code-example .token.removed {
+  @apply text-red-700 bg-red-50;
+}
