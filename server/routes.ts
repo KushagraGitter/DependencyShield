@@ -9,6 +9,10 @@ import os from "os";
 import { runNpmAudit } from "./services/npmAudit";
 import { analyzeCodeUsage, calculateMigrationComplexity } from "./services/codeAnalysis";
 import { generateMigrationSuggestions } from "./services/openai";
+import { performASTAnalysis } from "./services/astAnalysis";
+import { analyzeChangelog } from "./services/changelogAnalysis";
+import { fetchCVEDetails, enrichVulnerabilityWithCVE } from "./services/cveService";
+import { generateAutomatedMigration } from "./services/migrationGenerator";
 import { insertAnalysisSchema } from "@shared/schema";
 
 // Configure multer for file uploads
@@ -70,6 +74,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         // Process source files if provided
         let codeAnalysis: any = null;
+        let astAnalysis: any = null;
         if (files.sourceFiles && files.sourceFiles.length > 0) {
           const sourceFiles = files.sourceFiles.map(file => ({
             name: file.originalname,
@@ -79,28 +84,83 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const packageJson = JSON.parse(packageJsonContent);
           const dependencies = { ...packageJson.dependencies, ...packageJson.devDependencies };
           
+          // Perform both basic and AST analysis
           codeAnalysis = await analyzeCodeUsage(sourceFiles, dependencies);
+          
+          try {
+            astAnalysis = await performASTAnalysis(sourceFiles, dependencies);
+          } catch (astError) {
+            console.error("AST analysis failed:", astError);
+            // Continue without AST analysis
+          }
           
           // Enhance vulnerabilities with usage analysis
           auditResult.vulnerabilities.forEach(vuln => {
             const usage = codeAnalysis?.packageUsage[vuln.package];
+            const astUsage = astAnalysis?.packageUsage[vuln.package];
             if (usage) {
               vuln.usageAnalysis = {
                 filesAffected: usage.filesUsing.length,
-                methodsUsed: usage.methodsUsed
+                methodsUsed: usage.methodsUsed,
+                migrationRisk: astUsage?.migrationRisk || 'low',
+                complexityScore: astUsage?.complexityScore || 0
               };
             }
           });
         }
 
-        // Generate AI migration suggestions
+        // Enrich vulnerabilities with CVE details
+        const enrichedVulnerabilities = await Promise.all(
+          auditResult.vulnerabilities.map(async (vuln) => {
+            try {
+              return await enrichVulnerabilityWithCVE(vuln);
+            } catch (error) {
+              console.error(`Failed to enrich CVE for ${vuln.id}:`, error);
+              return vuln;
+            }
+          })
+        );
+
+        // Generate AI migration suggestions and automated migrations
         let aiSuggestions: any[] = [];
+        let automatedMigrations: any[] = [];
+        
         try {
           aiSuggestions = await generateMigrationSuggestions(
-            auditResult.vulnerabilities,
+            enrichedVulnerabilities,
             JSON.parse(packageJsonContent),
             codeAnalysis
           );
+
+          // Generate detailed automated migrations for high-priority vulnerabilities
+          if (astAnalysis && enrichedVulnerabilities.length > 0) {
+            const criticalVulns = enrichedVulnerabilities
+              .filter(v => v.severity === 'critical' || v.severity === 'high')
+              .slice(0, 3); // Limit to prevent long processing times
+
+            for (const vuln of criticalVulns) {
+              try {
+                const changelogAnalysis = await analyzeChangelog(
+                  vuln.package,
+                  vuln.version,
+                  vuln.fixedIn || 'latest'
+                );
+
+                const migration = await generateAutomatedMigration(
+                  vuln.package,
+                  vuln.version,
+                  vuln.fixedIn || 'latest',
+                  astAnalysis,
+                  changelogAnalysis,
+                  codeAnalysis
+                );
+
+                automatedMigrations.push(migration);
+              } catch (migrationError) {
+                console.error(`Failed to generate migration for ${vuln.package}:`, migrationError);
+              }
+            }
+          }
         } catch (aiError) {
           console.error("Failed to generate AI suggestions:", aiError);
           // Continue without AI suggestions rather than failing the entire request
@@ -116,10 +176,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const analysisData = {
           sessionId,
           packageJson: JSON.parse(packageJsonContent),
-          vulnerabilities: auditResult.vulnerabilities,
+          vulnerabilities: enrichedVulnerabilities,
           securityScore,
           aiSuggestions,
-          codeAnalysis
+          codeAnalysis: {
+            ...codeAnalysis,
+            astAnalysis,
+            automatedMigrations
+          }
         };
 
         const result = await storage.saveAnalysisResult(analysisData);
@@ -127,15 +191,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         res.json({
           id: result.id,
           sessionId: result.sessionId,
-          vulnerabilities: auditResult.vulnerabilities,
+          vulnerabilities: enrichedVulnerabilities,
           metrics: auditResult.metrics,
           securityScore,
           aiSuggestions,
-          codeAnalysis,
+          automatedMigrations,
+          codeAnalysis: analysisData.codeAnalysis,
           dependencyInfo: codeAnalysis ? {
             total: Object.keys(JSON.parse(packageJsonContent).dependencies || {}).length + 
                    Object.keys(JSON.parse(packageJsonContent).devDependencies || {}).length,
-            vulnerable: auditResult.vulnerabilities.length,
+            vulnerable: enrichedVulnerabilities.length,
             outdated: 0, // Could be enhanced with additional checks
             unused: codeAnalysis.unusedDependencies.length
           } : null

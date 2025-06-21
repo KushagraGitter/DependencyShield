@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import { AnalysisProgress, Vulnerability, SecurityMetrics, DependencyInfo, AIMigrationSuggestion } from "@shared/schema";
+import { AnalysisProgress, Vulnerability, SecurityMetrics, DependencyInfo, AIMigrationSuggestion, AutomatedMigration } from "@shared/schema";
 
 interface AnalysisResult {
   id: number;
@@ -10,6 +10,7 @@ interface AnalysisResult {
   metrics: SecurityMetrics;
   securityScore: number;
   aiSuggestions?: AIMigrationSuggestion[];
+  automatedMigrations?: AutomatedMigration[];
   dependencyInfo?: DependencyInfo | null;
 }
 

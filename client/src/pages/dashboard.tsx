@@ -8,6 +8,7 @@ import { AnalysisProgress } from "@/components/AnalysisProgress";
 import { VulnerabilityDashboard } from "@/components/VulnerabilityDashboard";
 import { VulnerabilityList } from "@/components/VulnerabilityList";
 import { AIMigrationSuggestions } from "@/components/AIMigrationSuggestions";
+import { AutomatedMigrationGuide } from "@/components/AutomatedMigrationGuide";
 import { useAnalysis } from "@/hooks/useAnalysis";
 
 export default function Dashboard() {
@@ -128,6 +129,12 @@ export default function Dashboard() {
             {analysisResult.aiSuggestions && analysisResult.aiSuggestions.length > 0 && (
               <AIMigrationSuggestions 
                 suggestions={analysisResult.aiSuggestions}
+              />
+            )}
+
+            {analysisResult.automatedMigrations && analysisResult.automatedMigrations.length > 0 && (
+              <AutomatedMigrationGuide 
+                migrations={analysisResult.automatedMigrations}
               />
             )}
           </>

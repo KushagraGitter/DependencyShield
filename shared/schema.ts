@@ -47,7 +47,27 @@ export interface Vulnerability {
   usageAnalysis?: {
     filesAffected: number;
     methodsUsed: string[];
+    migrationRisk?: 'low' | 'medium' | 'high';
+    complexityScore?: number;
   };
+  cveDetails?: {
+    id: string;
+    description: string;
+    publishedDate: string;
+    lastModifiedDate: string;
+    cvssV3?: any;
+    cvssV2?: any;
+    references: any[];
+    hasExploit: boolean;
+    patchAvailable: boolean;
+    exploitabilityScore?: number;
+    impactScore?: number;
+  };
+  hasExploit?: boolean;
+  patchAvailable?: boolean;
+  exploitabilityScore?: number;
+  impactScore?: number;
+  references?: any[];
 }
 
 export interface SecurityMetrics {
@@ -88,4 +108,44 @@ export interface AnalysisProgress {
   currentStep: string;
   status: 'idle' | 'running' | 'completed' | 'error';
   percentage: number;
+}
+
+export interface AutomatedMigration {
+  packageName: string;
+  fromVersion: string;
+  toVersion: string;
+  migrationSteps: MigrationStep[];
+  overallComplexity: 'low' | 'medium' | 'high';
+  automationCoverage: number;
+  totalEstimatedTime: string;
+  preRequisites: string[];
+  postMigrationTasks: string[];
+  riskAssessment: {
+    dataLoss: 'none' | 'low' | 'medium' | 'high';
+    breakingChanges: 'none' | 'minor' | 'major' | 'critical';
+    rollbackDifficulty: 'easy' | 'medium' | 'hard';
+  };
+}
+
+export interface MigrationStep {
+  id: string;
+  type: 'import_change' | 'api_change' | 'config_change' | 'dependency_change' | 'manual_review';
+  title: string;
+  description: string;
+  automated: boolean;
+  codeChanges?: {
+    file: string;
+    changes: {
+      line: number;
+      oldCode: string;
+      newCode: string;
+      explanation: string;
+    }[];
+  }[];
+  verification?: {
+    test: string;
+    expectedResult: string;
+  };
+  estimatedTime: string;
+  priority: 'high' | 'medium' | 'low';
 }
