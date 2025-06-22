@@ -168,11 +168,11 @@ async function analyzeJavaScriptFile(
 
     // Check if traverse function is available
     if (!babelTraverse || typeof babelTraverse !== 'function') {
-      console.log(`Using TypeScript analysis for ${file.path} instead of Babel traverse`);
+      console.log(`Using TypeScript analysis for ${file.name} instead of Babel traverse`);
       return;
     }
     
-    console.log(`Successfully processing ${file.path} with AST analysis`);
+    console.log(`Successfully processing ${file.name} with AST analysis`);
     
     // Initialize package usage tracking for all dependencies
     Object.keys(dependencies).forEach(pkg => {
