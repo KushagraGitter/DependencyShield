@@ -13,6 +13,12 @@ export interface ASTAnalysisResult {
     exportedSymbols: string[];
     complexityScore: number;
     migrationRisk: 'low' | 'medium' | 'high';
+    fileUsage: {
+      fileName: string;
+      importStatements: string[];
+      usageExamples: string[];
+      lineNumbers: number[];
+    }[];
   }>;
   codeMetrics: {
     totalFunctions: number;
@@ -62,6 +68,7 @@ export async function performASTAnalysis(
       exportedSymbols: [],
       complexityScore: 0,
       migrationRisk: 'low',
+      fileUsage: [],
     };
   });
 
@@ -70,7 +77,7 @@ export async function performASTAnalysis(
       // Try TypeScript/TSX first
       if (file.name.endsWith('.ts') || file.name.endsWith('.tsx')) {
         const sourceFile = project.createSourceFile(file.name, file.content);
-        analyzeTypeScriptFile(sourceFile, packageUsage, codeMetrics, dependencyGraph, dependencies);
+        analyzeTypeScriptFile(sourceFile, packageUsage, codeMetrics, dependencyGraph, dependencies, file.name);
       } else {
         // Use Babel for JavaScript files
         await analyzeJavaScriptFile(file, packageUsage, codeMetrics, dependencyGraph, dependencies);
@@ -98,8 +105,16 @@ function analyzeTypeScriptFile(
   packageUsage: Record<string, any>,
   codeMetrics: any,
   dependencyGraph: Record<string, string[]>,
-  dependencies: Record<string, string>
+  dependencies: Record<string, string>,
+  fileName: string
 ) {
+  // Track file-specific usage for each package
+  const fileUsageTracker: Record<string, {
+    importStatements: string[];
+    usageExamples: string[];
+    lineNumbers: number[];
+  }> = {};
+
   // Count functions and classes
   sourceFile.getFunctions().forEach(() => codeMetrics.totalFunctions++);
   sourceFile.getClasses().forEach(() => codeMetrics.totalClasses++);
@@ -109,10 +124,22 @@ function analyzeTypeScriptFile(
     codeMetrics.totalImports++;
     const moduleSpecifier = importDecl.getModuleSpecifierValue();
     const packageName = extractPackageName(moduleSpecifier);
+    const lineNumber = importDecl.getStartLineNumber();
     
     if (packageName && dependencies[packageName]) {
       const importText = importDecl.getText();
       packageUsage[packageName].importNodes.push(importText);
+      
+      // Track file usage
+      if (!fileUsageTracker[packageName]) {
+        fileUsageTracker[packageName] = {
+          importStatements: [],
+          usageExamples: [],
+          lineNumbers: []
+        };
+      }
+      fileUsageTracker[packageName].importStatements.push(importText);
+      fileUsageTracker[packageName].lineNumbers.push(lineNumber);
       
       // Track named imports
       const namedImports = importDecl.getNamedImports();
@@ -129,12 +156,37 @@ function analyzeTypeScriptFile(
       if (Node.isPropertyAccessExpression(expression)) {
         const objectText = expression.getExpression().getText();
         const packageName = findPackageFromIdentifier(objectText, dependencies);
+        const lineNumber = node.getStartLineNumber();
+        
         if (packageName) {
-          packageUsage[packageName].usageNodes.push(node.getText());
+          const usageText = node.getText();
+          packageUsage[packageName].usageNodes.push(usageText);
           packageUsage[packageName].complexityScore += 1;
+          
+          // Track file usage
+          if (!fileUsageTracker[packageName]) {
+            fileUsageTracker[packageName] = {
+              importStatements: [],
+              usageExamples: [],
+              lineNumbers: []
+            };
+          }
+          fileUsageTracker[packageName].usageExamples.push(usageText);
+          fileUsageTracker[packageName].lineNumbers.push(lineNumber);
         }
       }
     }
+  });
+
+  // Add file usage data to package usage
+  Object.keys(fileUsageTracker).forEach(packageName => {
+    const usage = fileUsageTracker[packageName];
+    packageUsage[packageName].fileUsage.push({
+      fileName,
+      importStatements: usage.importStatements,
+      usageExamples: usage.usageExamples.slice(0, 5), // Limit to 5 examples
+      lineNumbers: usage.lineNumbers
+    });
   });
 }
 
@@ -182,16 +234,25 @@ async function analyzeJavaScriptFile(
           usageNodes: [],
           exportedSymbols: [],
           complexityScore: 0,
-          migrationRisk: 'low' as const
+          migrationRisk: 'low' as const,
+          fileUsage: [],
         };
       }
     });
+
+    // Track file-specific usage
+    const fileUsageTracker: Record<string, {
+      importStatements: string[];
+      usageExamples: string[];
+      lineNumbers: number[];
+    }> = {};
 
     babelTraverse(ast, {
       ImportDeclaration(path: any) {
         codeMetrics.totalImports++;
         const source = path.node.source.value;
         const packageName = extractPackageName(source);
+        const lineNumber = path.node.loc?.start?.line || 0;
         
         if (packageName && dependencies[packageName]) {
           if (!packageUsage[packageName]) {
@@ -200,11 +261,24 @@ async function analyzeJavaScriptFile(
               usageNodes: [],
               exportedSymbols: [],
               complexityScore: 0,
-              migrationRisk: 'low' as const
+              migrationRisk: 'low' as const,
+              fileUsage: [],
             };
           }
           
-          packageUsage[packageName].importNodes.push(path.toString());
+          const importText = path.toString();
+          packageUsage[packageName].importNodes.push(importText);
+          
+          // Track file usage
+          if (!fileUsageTracker[packageName]) {
+            fileUsageTracker[packageName] = {
+              importStatements: [],
+              usageExamples: [],
+              lineNumbers: []
+            };
+          }
+          fileUsageTracker[packageName].importStatements.push(importText);
+          fileUsageTracker[packageName].lineNumbers.push(lineNumber);
           
           path.node.specifiers.forEach((spec: any) => {
             if (t.isImportSpecifier(spec)) {

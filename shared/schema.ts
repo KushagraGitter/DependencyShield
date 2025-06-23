@@ -49,6 +49,12 @@ export interface Vulnerability {
     methodsUsed: string[];
     migrationRisk?: 'low' | 'medium' | 'high';
     complexityScore?: number;
+    fileUsage?: {
+      fileName: string;
+      importStatements: string[];
+      usageExamples: string[];
+      lineNumbers: number[];
+    }[];
   };
   cveDetails?: {
     id: string;
