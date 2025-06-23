@@ -75,11 +75,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const auditResult = await runNpmAudit(packageJsonContent, tempDir);
         const sessionId = `session-${Date.now()}-${Math.random().toString(36).substring(2)}`;
         
-        // Enrich vulnerabilities with CVE details
+        // Enrich vulnerabilities with CVE details and usage analysis
         const enrichedVulnerabilities = await Promise.all(
           auditResult.vulnerabilities.map(async (vuln: any) => {
             try {
-              return await enrichVulnerabilityWithCVE(vuln);
+              const enrichedVuln = await enrichVulnerabilityWithCVE(vuln);
+              
+              // Add usage analysis from code analysis (for now, AST analysis methods detection needs improvement)
+              enrichedVuln.usageAnalysis = {
+                filesAffected: 0,
+                methodsUsed: [],
+                migrationRisk: 'low',
+                complexityScore: 0,
+                fileUsage: [],
+              };
+              
+              return enrichedVuln;
             } catch (error) {
               console.error(`Failed to enrich vulnerability ${vuln.id}:`, error);
               return vuln;
@@ -312,7 +323,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const enrichedVulnerabilities = await Promise.all(
           auditResult.vulnerabilities.map(async (vuln: any) => {
             try {
-              return await enrichVulnerabilityWithCVE(vuln);
+              const enrichedVuln = await enrichVulnerabilityWithCVE(vuln);
+              
+              // Enrich with usage analysis from code and AST analysis
+              if (codeAnalysis?.packageUsage[vuln.package] || astAnalysis?.packageUsage[vuln.package]) {
+                const codeData = codeAnalysis?.packageUsage[vuln.package];
+                const astData = astAnalysis?.packageUsage[vuln.package];
+                
+                enrichedVuln.usageAnalysis = {
+                  filesAffected: astData?.fileUsage?.length || codeData?.filesUsing?.length || 0,
+                  methodsUsed: codeData?.methodsUsed || astData?.exportedSymbols || [],
+                  migrationRisk: astData?.migrationRisk || 'low',
+                  complexityScore: astData?.complexityScore || 0,
+                  fileUsage: astData?.fileUsage || [],
+                };
+              }
+              
+              return enrichedVuln;
             } catch (error) {
               console.error(`Failed to enrich vulnerability ${vuln.id}:`, error);
               return vuln;

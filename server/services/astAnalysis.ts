@@ -155,6 +155,7 @@ function analyzeTypeScriptFile(
       const expression = node.getExpression();
       if (Node.isPropertyAccessExpression(expression)) {
         const objectText = expression.getExpression().getText();
+        const methodName = expression.getName();
         const packageName = findPackageFromIdentifier(objectText, dependencies);
         const lineNumber = node.getStartLineNumber();
         
@@ -162,6 +163,11 @@ function analyzeTypeScriptFile(
           const usageText = node.getText();
           packageUsage[packageName].usageNodes.push(usageText);
           packageUsage[packageName].complexityScore += 1;
+          
+          // Track the specific method being used
+          if (!packageUsage[packageName].exportedSymbols.includes(methodName)) {
+            packageUsage[packageName].exportedSymbols.push(methodName);
+          }
           
           // Track file usage
           if (!fileUsageTracker[packageName]) {
@@ -300,6 +306,8 @@ async function analyzeJavaScriptFile(
         if (t.isMemberExpression(path.node.callee)) {
           const objectName = getObjectName(path.node.callee.object);
           const packageName = findPackageFromIdentifier(objectName, dependencies);
+          const lineNumber = path.node.loc?.start?.line || 0;
+          
           if (packageName) {
             if (!packageUsage[packageName]) {
               packageUsage[packageName] = {
@@ -307,11 +315,32 @@ async function analyzeJavaScriptFile(
                 usageNodes: [],
                 exportedSymbols: [],
                 complexityScore: 0,
-                migrationRisk: 'low' as const
+                migrationRisk: 'low' as const,
+                fileUsage: [],
               };
             }
-            packageUsage[packageName].usageNodes.push(path.toString());
+            
+            const usageText = path.toString();
+            const methodName = path.node.callee.property?.name || 'unknown';
+            
+            packageUsage[packageName].usageNodes.push(usageText);
             packageUsage[packageName].complexityScore += 1;
+            
+            // Track the specific method being used
+            if (!packageUsage[packageName].exportedSymbols.includes(methodName)) {
+              packageUsage[packageName].exportedSymbols.push(methodName);
+            }
+            
+            // Track file usage
+            if (!fileUsageTracker[packageName]) {
+              fileUsageTracker[packageName] = {
+                importStatements: [],
+                usageExamples: [],
+                lineNumbers: []
+              };
+            }
+            fileUsageTracker[packageName].usageExamples.push(usageText);
+            fileUsageTracker[packageName].lineNumbers.push(lineNumber);
           }
         }
       },
