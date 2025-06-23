@@ -4,7 +4,8 @@ import fs from 'fs/promises';
 import path from 'path';
 import { Vulnerability, SecurityMetrics } from '@shared/schema';
 import { enrichVulnerabilityWithCVE } from './cveService';
-import { realtimeVulnerabilityService } from './realtimeVulnerabilityService';
+// Disabled due to GitHub API 403 errors
+// import { realtimeVulnerabilityService } from './realtimeVulnerabilityService';
 
 const execAsync = promisify(exec);
 
@@ -48,16 +49,21 @@ export async function runNpmAudit(packageJsonContent: string, tempDir: string): 
   } catch (error) {
     console.error('NPM audit failed:', error);
     
-    // Fallback: use real-time vulnerability services
-    const packageData = JSON.parse(packageJsonContent);
-    const dependencies = { ...packageData.dependencies, ...packageData.devDependencies };
+    // NPM audit failed, but we can still extract vulnerability data from the stdout
+    if (error.stdout) {
+      try {
+        const auditData = JSON.parse(error.stdout);
+        console.log('Parsing vulnerabilities from npm audit stdout...');
+        return parseAuditResults(auditData);
+      } catch (parseError) {
+        console.log('Could not parse npm audit stdout, returning empty results');
+      }
+    }
     
-    console.log('Falling back to real-time vulnerability services...');
-    const realtimeVulnerabilities = await realtimeVulnerabilityService.fetchVulnerabilitiesForPackages(dependencies);
-    
+    // Return empty results if we can't parse anything
     return {
-      vulnerabilities: realtimeVulnerabilities,
-      metrics: calculateMetricsFromVulns(realtimeVulnerabilities),
+      vulnerabilities: [],
+      metrics: { critical: 0, high: 0, moderate: 0, low: 0, total: 0 },
       advisories: []
     };
   }

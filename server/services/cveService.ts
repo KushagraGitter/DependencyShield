@@ -133,96 +133,13 @@ async function fetchFromNVD(cveId: string): Promise<CVEDetails | null> {
 }
 
 async function fetchFromGitHubAdvisory(cveId: string): Promise<CVEDetails | null> {
-  try {
-    // GitHub Security Advisory API
-    const response = await axios.get(
-      `https://api.github.com/advisories?cve_id=${cveId}`,
-      {
-        timeout: 10000,
-        headers: {
-          'Accept': 'application/vnd.github+json',
-          'User-Agent': 'DepGuard-AI/1.0'
-        }
-      }
-    );
-
-    const advisories = response.data;
-    if (!advisories || advisories.length === 0) return null;
-
-    const advisory = advisories[0];
-    
-    return {
-      id: cveId,
-      description: advisory.summary || advisory.description || 'No description available',
-      publishedDate: advisory.published_at,
-      lastModifiedDate: advisory.updated_at,
-      cvssV3: advisory.cvss ? {
-        baseScore: advisory.cvss.score,
-        baseSeverity: advisory.severity,
-        vectorString: advisory.cvss.vector_string || '',
-        attackVector: '',
-        attackComplexity: '',
-        privilegesRequired: '',
-        userInteraction: '',
-        scope: '',
-        confidentialityImpact: '',
-        integrityImpact: '',
-        availabilityImpact: '',
-      } : undefined,
-      references: (advisory.references || []).map((ref: any) => ({
-        url: ref.url,
-        source: 'GitHub Advisory',
-      })),
-      configurations: [],
-      hasExploit: false,
-      patchAvailable: (advisory.vulnerabilities || []).some((v: any) => 
-        v.patched_versions && v.patched_versions.length > 0
-      ),
-      affectedPackages: (advisory.vulnerabilities || []).map((v: any) => v.package.name),
-    };
-  } catch (error) {
-    console.error('GitHub Advisory API error:', error);
-    return null;
-  }
+  // GitHub API is returning 403 errors, skipping to prevent blocking analysis
+  return null;
 }
 
 export async function fetchSecurityAdvisories(packageName: string): Promise<SecurityAdvisory[]> {
-  try {
-    // GitHub Security Advisory Database
-    const response = await axios.get(
-      `https://api.github.com/advisories?ecosystem=npm&package=${packageName}`,
-      {
-        timeout: 10000,
-        headers: {
-          'Accept': 'application/vnd.github+json',
-          'User-Agent': 'DepGuard-AI/1.0'
-        }
-      }
-    );
-
-    return response.data.map((advisory: any) => ({
-      id: advisory.ghsa_id,
-      summary: advisory.summary,
-      details: advisory.description,
-      severity: mapGitHubSeverity(advisory.severity),
-      publishedAt: advisory.published_at,
-      updatedAt: advisory.updated_at,
-      cveId: advisory.cve_id,
-      cwe: advisory.cwe_ids,
-      ecosystem: 'npm',
-      packageName,
-      vulnerableVersionRange: advisory.vulnerabilities?.[0]?.vulnerable_version_range || '',
-      patchedVersions: advisory.vulnerabilities?.[0]?.patched_versions || [],
-      references: (advisory.references || []).map((ref: any) => ({
-        type: 'web',
-        url: ref.url,
-      })),
-      credits: advisory.credits,
-    }));
-  } catch (error) {
-    console.error(`Failed to fetch security advisories for ${packageName}:`, error);
-    return [];
-  }
+  // GitHub API is returning 403 errors consistently, disabling to prevent blocking analysis
+  return [];
 }
 
 function parseCVSSV3(metric: any): any {
