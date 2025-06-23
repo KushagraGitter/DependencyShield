@@ -74,6 +74,7 @@ export interface Vulnerability {
   exploitabilityScore?: number;
   impactScore?: number;
   references?: any[];
+  releaseNotesComparison?: ReleaseNotesComparison;
 }
 
 export interface SecurityMetrics {
@@ -154,4 +155,24 @@ export interface MigrationStep {
   };
   estimatedTime: string;
   priority: 'high' | 'medium' | 'low';
+}
+
+export interface ReleaseNotesComparison {
+  packageName: string;
+  currentVersion: string;
+  recommendedVersion: string;
+  summary: string;
+  breakingChanges: {
+    type: 'api' | 'config' | 'dependency' | 'behavior';
+    description: string;
+    impact: 'low' | 'medium' | 'high';
+    migrationRequired: boolean;
+  }[];
+  newFeatures: string[];
+  bugFixes: string[];
+  securityFixes: string[];
+  deprecations: string[];
+  migrationComplexity: 'low' | 'medium' | 'high';
+  estimatedMigrationTime: string;
+  recommendations: string[];
 }

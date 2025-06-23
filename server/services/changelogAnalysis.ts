@@ -1,6 +1,31 @@
 import axios from 'axios';
 import { parse } from 'node-html-parser';
 import * as semver from 'semver';
+import OpenAI from 'openai';
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
+export interface ReleaseNotesComparison {
+  packageName: string;
+  currentVersion: string;
+  recommendedVersion: string;
+  summary: string;
+  breakingChanges: {
+    type: 'api' | 'config' | 'dependency' | 'behavior';
+    description: string;
+    impact: 'low' | 'medium' | 'high';
+    migrationRequired: boolean;
+  }[];
+  newFeatures: string[];
+  bugFixes: string[];
+  securityFixes: string[];
+  deprecations: string[];
+  migrationComplexity: 'low' | 'medium' | 'high';
+  estimatedMigrationTime: string;
+  recommendations: string[];
+}
 
 export interface ChangelogEntry {
   version: string;
@@ -291,5 +316,171 @@ function estimateEffort(breakingChanges: any[], complexity: string): string {
     case 'medium': return '1 - 4 hours';
     case 'high': return '4+ hours';
     default: return 'Unknown';
+  }
+}
+
+export async function compareReleaseNotes(
+  packageName: string,
+  currentVersion: string,
+  recommendedVersion: string
+): Promise<ReleaseNotesComparison> {
+  try {
+    // Fetch release notes for both versions
+    const currentReleaseNotes = await fetchReleaseNotesForVersion(packageName, currentVersion);
+    const recommendedReleaseNotes = await fetchReleaseNotesForVersion(packageName, recommendedVersion);
+    
+    // Get all versions between current and recommended
+    const versionsBetween = await getVersionChangesBetween(packageName, currentVersion, recommendedVersion);
+    
+    // Use AI to analyze the differences
+    const analysisPrompt = `
+Analyze the release notes comparison for ${packageName} from version ${currentVersion} to ${recommendedVersion}.
+
+Current Version Release Notes:
+${currentReleaseNotes || 'No release notes available'}
+
+Recommended Version Release Notes:
+${recommendedReleaseNotes || 'No release notes available'}
+
+All Changes Between Versions:
+${versionsBetween.join('\n\n')}
+
+Please provide a comprehensive analysis in JSON format with the following structure:
+{
+  "summary": "Brief overview of major changes",
+  "breakingChanges": [
+    {
+      "type": "api|config|dependency|behavior",
+      "description": "Description of the breaking change",
+      "impact": "low|medium|high",
+      "migrationRequired": true|false
+    }
+  ],
+  "newFeatures": ["List of new features added"],
+  "bugFixes": ["List of important bug fixes"],
+  "securityFixes": ["List of security vulnerabilities fixed"],
+  "deprecations": ["List of deprecated features"],
+  "migrationComplexity": "low|medium|high",
+  "estimatedMigrationTime": "X hours/days/weeks",
+  "recommendations": ["List of migration recommendations"]
+}
+
+Focus on:
+1. Breaking changes that require code modifications
+2. API changes that affect existing usage
+3. Configuration changes needed
+4. Security improvements and vulnerability fixes
+5. New features that might be beneficial to adopt
+6. Deprecated features that should be updated`;
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o", // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
+      messages: [
+        {
+          role: "system",
+          content: "You are an expert software engineer specializing in package migration analysis. Provide detailed, accurate analysis of release notes and breaking changes. Always respond with valid JSON."
+        },
+        {
+          role: "user",
+          content: analysisPrompt
+        }
+      ],
+      response_format: { type: "json_object" },
+      temperature: 0.1
+    });
+
+    const analysis = JSON.parse(response.choices[0].message.content || '{}');
+    
+    return {
+      packageName,
+      currentVersion,
+      recommendedVersion,
+      summary: analysis.summary || 'No summary available',
+      breakingChanges: analysis.breakingChanges || [],
+      newFeatures: analysis.newFeatures || [],
+      bugFixes: analysis.bugFixes || [],
+      securityFixes: analysis.securityFixes || [],
+      deprecations: analysis.deprecations || [],
+      migrationComplexity: analysis.migrationComplexity || 'medium',
+      estimatedMigrationTime: analysis.estimatedMigrationTime || '1-2 days',
+      recommendations: analysis.recommendations || []
+    };
+    
+  } catch (error) {
+    console.error(`Error comparing release notes for ${packageName}:`, error);
+    return {
+      packageName,
+      currentVersion,
+      recommendedVersion,
+      summary: 'Unable to analyze release notes',
+      breakingChanges: [],
+      newFeatures: [],
+      bugFixes: [],
+      securityFixes: [],
+      deprecations: [],
+      migrationComplexity: 'medium',
+      estimatedMigrationTime: '1-2 days',
+      recommendations: ['Manual review of changelog recommended']
+    };
+  }
+}
+
+async function fetchReleaseNotesForVersion(packageName: string, version: string): Promise<string> {
+  try {
+    // Try to get release notes from GitHub
+    const repoUrl = await getGitHubRepo(packageName);
+    if (repoUrl) {
+      const response = await fetch(`https://api.github.com/repos/${repoUrl}/releases/tags/v${version}`);
+      if (response.ok) {
+        const release = await response.json();
+        return release.body || '';
+      }
+    }
+    
+    // Fallback to npm registry
+    const npmResponse = await fetch(`https://registry.npmjs.org/${packageName}/${version}`);
+    if (npmResponse.ok) {
+      const packageData = await npmResponse.json();
+      return packageData.description || '';
+    }
+    
+    return '';
+  } catch (error) {
+    console.error(`Error fetching release notes for ${packageName}@${version}:`, error);
+    return '';
+  }
+}
+
+async function getVersionChangesBetween(packageName: string, fromVersion: string, toVersion: string): Promise<string[]> {
+  try {
+    const repoUrl = await getGitHubRepo(packageName);
+    if (!repoUrl) return [];
+    
+    // Get all releases between versions
+    const response = await fetch(`https://api.github.com/repos/${repoUrl}/releases?per_page=100`);
+    if (!response.ok) return [];
+    
+    const releases = await response.json();
+    const changes: string[] = [];
+    
+    for (const release of releases) {
+      const version = release.tag_name?.replace(/^v/, '');
+      if (version && isVersionBetween(version, fromVersion, toVersion)) {
+        changes.push(`Version ${version}:\n${release.body || 'No release notes'}`);
+      }
+    }
+    
+    return changes;
+  } catch (error) {
+    console.error(`Error fetching version changes for ${packageName}:`, error);
+    return [];
+  }
+}
+
+function isVersionBetween(version: string, from: string, to: string): boolean {
+  try {
+    return semver.gt(version, from) && semver.lte(version, to);
+  } catch (error) {
+    return false;
   }
 }

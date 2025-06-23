@@ -11,7 +11,7 @@ import { performASTAnalysis } from "./services/astAnalysis";
 import { enrichVulnerabilityWithCVE } from "./services/cveService";
 import { generateMigrationSuggestions } from "./services/openai";
 import { generateAutomatedMigration } from "./services/migrationGenerator";
-import { analyzeChangelog } from "./services/changelogAnalysis";
+import { analyzeChangelog, compareReleaseNotes } from "./services/changelogAnalysis";
 import { storage } from "./storage";
 import packageDetailsRoutes from "./routes/packageDetailsRoutes";
 
@@ -353,6 +353,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   complexityScore: astData?.complexityScore || 0,
                   fileUsage,
                 };
+              }
+
+              // Add release notes comparison for better migration planning
+              if (vuln.fixedIn && vuln.version) {
+                try {
+                  const releaseComparison = await compareReleaseNotes(
+                    vuln.package,
+                    vuln.version.replace('<=', '').replace('>=', '').replace('<', '').replace('>', '').trim(),
+                    vuln.fixedIn === 'Available' ? 'latest' : vuln.fixedIn
+                  );
+                  enrichedVuln.releaseNotesComparison = releaseComparison;
+                } catch (error) {
+                  console.error(`Failed to compare release notes for ${vuln.package}:`, error);
+                }
               }
               
               return enrichedVuln;
