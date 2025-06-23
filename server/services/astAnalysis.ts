@@ -130,7 +130,7 @@ function analyzeTypeScriptFile(
       const importText = importDecl.getText();
       packageUsage[packageName].importNodes.push(importText);
       
-      // Track file usage
+      // Track file usage and import statements
       if (!fileUsageTracker[packageName]) {
         fileUsageTracker[packageName] = {
           importStatements: [],
@@ -169,7 +169,7 @@ function analyzeTypeScriptFile(
             packageUsage[packageName].exportedSymbols.push(methodName);
           }
           
-          // Track file usage
+          // Track file usage with actual file name
           if (!fileUsageTracker[packageName]) {
             fileUsageTracker[packageName] = {
               importStatements: [],
@@ -184,15 +184,17 @@ function analyzeTypeScriptFile(
     }
   });
 
-  // Add file usage data to package usage
+  // Add file usage data to package usage with proper file tracking
   Object.keys(fileUsageTracker).forEach(packageName => {
     const usage = fileUsageTracker[packageName];
-    packageUsage[packageName].fileUsage.push({
-      fileName,
-      importStatements: usage.importStatements,
-      usageExamples: usage.usageExamples.slice(0, 5), // Limit to 5 examples
-      lineNumbers: usage.lineNumbers
-    });
+    if (packageUsage[packageName]) {
+      packageUsage[packageName].fileUsage.push({
+        fileName,
+        importStatements: usage.importStatements,
+        usageExamples: usage.usageExamples.slice(0, 10), // Show more examples
+        lineNumbers: usage.lineNumbers
+      });
+    }
   });
 }
 
@@ -203,6 +205,7 @@ async function analyzeJavaScriptFile(
   dependencyGraph: Record<string, string[]>,
   dependencies: Record<string, string>
 ) {
+  const fileUsageTracker: Record<string, any> = {};
   try {
     const ast = parse(file.content, {
       sourceType: "module",
@@ -331,7 +334,7 @@ async function analyzeJavaScriptFile(
               packageUsage[packageName].exportedSymbols.push(methodName);
             }
             
-            // Track file usage
+            // Track file usage with actual file name
             if (!fileUsageTracker[packageName]) {
               fileUsageTracker[packageName] = {
                 importStatements: [],
@@ -346,8 +349,24 @@ async function analyzeJavaScriptFile(
       },
     });
   } catch (error) {
-    console.error(`Error parsing JavaScript file ${file.path}:`, error.message);
+    console.error(`Error parsing JavaScript file ${file.name}:`, error.message);
   }
+
+  // Add file usage data to package usage for JavaScript files
+  Object.keys(fileUsageTracker).forEach(packageName => {
+    const usage = fileUsageTracker[packageName];
+    if (packageUsage[packageName]) {
+      if (!packageUsage[packageName].fileUsage) {
+        packageUsage[packageName].fileUsage = [];
+      }
+      packageUsage[packageName].fileUsage.push({
+        fileName: file.name,
+        importStatements: usage.importStatements,
+        usageExamples: usage.usageExamples.slice(0, 10),
+        lineNumbers: usage.lineNumbers
+      });
+    }
+  });
 }
 
 function extractPackageName(importPath: string): string | null {

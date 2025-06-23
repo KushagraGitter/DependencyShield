@@ -330,12 +330,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 const codeData = codeAnalysis?.packageUsage[vuln.package];
                 const astData = astAnalysis?.packageUsage[vuln.package];
                 
+                // Create file usage array with actual file names and code instances
+                const fileUsage = [];
+                if (astData?.fileUsage?.length > 0) {
+                  fileUsage.push(...astData.fileUsage);
+                } else if (codeData?.filesUsing?.length > 0) {
+                  // Fallback to code analysis data
+                  codeData.filesUsing.forEach((fileName, index) => {
+                    fileUsage.push({
+                      fileName,
+                      importStatements: codeData.importStatements || [],
+                      usageExamples: astData?.usageNodes || [],
+                      lineNumbers: []
+                    });
+                  });
+                }
+                
                 enrichedVuln.usageAnalysis = {
-                  filesAffected: astData?.fileUsage?.length || codeData?.filesUsing?.length || 0,
+                  filesAffected: fileUsage.length || codeData?.filesUsing?.length || 0,
                   methodsUsed: codeData?.methodsUsed || astData?.exportedSymbols || [],
                   migrationRisk: astData?.migrationRisk || 'low',
                   complexityScore: astData?.complexityScore || 0,
-                  fileUsage: astData?.fileUsage || [],
+                  fileUsage,
                 };
               }
               
