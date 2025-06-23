@@ -6,7 +6,7 @@ import { Shield, HelpCircle, Settings } from "lucide-react";
 import { FileUpload } from "@/components/FileUpload";
 import { AnalysisProgress } from "@/components/AnalysisProgress";
 import { VulnerabilityDashboard } from "@/components/VulnerabilityDashboard";
-import { VulnerabilityList } from "@/components/VulnerabilityList";
+import { VulnerabilityListWithDetails } from "@/components/VulnerabilityListWithDetails";
 import { AIMigrationSuggestions } from "@/components/AIMigrationSuggestions";
 import { AutomatedMigrationGuide } from "@/components/AutomatedMigrationGuide";
 import { RealTimeVulnerabilityChecker } from "@/components/RealTimeVulnerabilityChecker";

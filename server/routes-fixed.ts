@@ -13,6 +13,7 @@ import { generateMigrationSuggestions } from "./services/openai";
 import { generateAutomatedMigration } from "./services/migrationGenerator";
 import { analyzeChangelog } from "./services/changelogAnalysis";
 import { storage } from "./storage";
+import packageDetailsRoutes from "./routes/packageDetailsRoutes";
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -55,6 +56,9 @@ function calculateSecurityScore(metrics: { critical: number; high: number; moder
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Register package details routes
+  app.use('/api', packageDetailsRoutes);
+
   // JSON endpoint for simplified testing
   app.post("/api/analyze-json", async (req: Request, res: Response) => {
     try {
