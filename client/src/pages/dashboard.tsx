@@ -123,7 +123,7 @@ export default function Dashboard() {
               dependencyInfo={analysisResult.dependencyInfo}
             />
 
-            <VulnerabilityList 
+            <VulnerabilityListWithDetails 
               vulnerabilities={analysisResult.vulnerabilities}
             />
 
