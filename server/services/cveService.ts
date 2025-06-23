@@ -74,20 +74,8 @@ export interface SecurityAdvisory {
 }
 
 export async function fetchCVEDetails(cveId: string): Promise<CVEDetails | null> {
-  try {
-    // Try NVD API first
-    const nvdResponse = await fetchFromNVD(cveId);
-    if (nvdResponse) return nvdResponse;
-
-    // Fallback to other sources
-    const githubResponse = await fetchFromGitHubAdvisory(cveId);
-    if (githubResponse) return githubResponse;
-
-    return null;
-  } catch (error) {
-    console.error(`Failed to fetch CVE details for ${cveId}:`, error);
-    return null;
-  }
+  // Skip CVE enrichment due to API issues causing timeouts and invalid parameters
+  return null;
 }
 
 async function fetchFromNVD(cveId: string): Promise<CVEDetails | null> {
