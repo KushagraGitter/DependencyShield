@@ -37,6 +37,25 @@ npm run build
 export DEPGUARD_API_URL=http://localhost:5000  # Your DepGuard API URL
 ```
 
+## Quick Start
+
+### 1. Start DepGuard API Server
+```bash
+npm run dev  # From main project directory
+```
+
+### 2. Test MCP Connection
+```bash
+cd mcp-server
+./test-mcp.sh
+```
+
+### 3. Start MCP Server
+```bash
+cd mcp-server
+./start-mcp.sh
+```
+
 ## Usage with GitHub Copilot
 
 ### 1. Add to MCP Configuration
@@ -48,7 +67,7 @@ Add the DepGuard MCP server to your MCP configuration file (usually `~/.mcpconfi
   "mcpServers": {
     "depguard": {
       "command": "node",
-      "args": ["/path/to/depguard-mcp-server/dist/index.js"],
+      "args": ["/absolute/path/to/your/project/mcp-server/dist/index.js"],
       "env": {
         "DEPGUARD_API_URL": "http://localhost:5000"
       }

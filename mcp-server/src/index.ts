@@ -23,6 +23,17 @@ import { tmpdir } from 'os';
 // Define the base URL for the DepGuard API
 const DEPGUARD_API_BASE = process.env.DEPGUARD_API_URL || 'http://localhost:5000';
 
+// Add connection validation
+async function validateApiConnection(): Promise<boolean> {
+  try {
+    const response = await axios.get(`${DEPGUARD_API_BASE}/api/health`, { timeout: 5000 });
+    return response.status === 200;
+  } catch (error) {
+    console.error(`Failed to connect to DepGuard API at ${DEPGUARD_API_BASE}:`, error instanceof Error ? error.message : String(error));
+    return false;
+  }
+}
+
 // Define schemas for tool inputs
 const AnalyzePackageJsonSchema = z.object({
   packageJsonContent: z.string().describe('The content of package.json file as a string'),
@@ -157,7 +168,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         try {
           const response = await axios.post(
             `${DEPGUARD_API_BASE}/api/analyze-json`,
-            { packageJsonContent, projectName },
+            { packageJson: packageJsonContent, projectName },
             { headers: { 'Content-Type': 'application/json' } }
           );
           
@@ -505,11 +516,27 @@ Analysis Results: ${args?.analysisResults || '[Please provide analysis results f
 
 // Start the server
 async function main() {
+  console.error('Starting DepGuard MCP Server...');
+  console.error(`API Base URL: ${DEPGUARD_API_BASE}`);
+  
+  // Validate API connection
+  const isConnected = await validateApiConnection();
+  if (!isConnected) {
+    console.error('WARNING: Cannot connect to DepGuard API. Please ensure:');
+    console.error('1. DepGuard API server is running on port 5000');
+    console.error('2. DEPGUARD_API_URL environment variable is correct');
+    console.error('3. No firewall blocking the connection');
+  } else {
+    console.error('✓ Successfully connected to DepGuard API');
+  }
+  
   const transport = new StdioServerTransport();
   await server.connect(transport);
+  console.error('MCP Server ready and listening...');
   
   // Graceful shutdown
   process.on('SIGINT', async () => {
+    console.error('Shutting down MCP Server...');
     await server.close();
     process.exit(0);
   });

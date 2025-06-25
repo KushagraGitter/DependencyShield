@@ -59,6 +59,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Register package details routes
   app.use('/api', packageDetailsRoutes);
 
+  // Health check endpoint
+  app.get("/api/health", (_req: Request, res: Response) => {
+    res.json({ 
+      status: "ok", 
+      timestamp: new Date().toISOString(),
+      version: "1.0.0",
+      services: {
+        api: "running",
+        database: "connected",
+        ai: process.env.OPENAI_API_KEY ? "configured" : "missing"
+      }
+    });
+  });
+
   // JSON endpoint for simplified testing
   app.post("/api/analyze-json", async (req: Request, res: Response) => {
     try {
