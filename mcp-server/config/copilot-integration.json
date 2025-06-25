@@ -1,0 +1,52 @@
+{
+  "name": "DepGuard MCP Server Configuration",
+  "description": "Configuration for integrating DepGuard AI with GitHub Copilot via MCP",
+  "mcpServers": {
+    "depguard": {
+      "command": "node",
+      "args": ["./mcp-server/dist/index.js"],
+      "env": {
+        "DEPGUARD_API_URL": "http://localhost:5000"
+      }
+    }
+  },
+  "tools": [
+    {
+      "name": "analyze_package_json",
+      "description": "Analyze package.json for vulnerabilities",
+      "usage": "@depguard analyze_package_json packageJsonContent=\"{...}\" projectName=\"MyProject\""
+    },
+    {
+      "name": "analyze_project_zip", 
+      "description": "Analyze complete project ZIP file",
+      "usage": "@depguard analyze_project_zip zipFilePath=\"/path/to/project.zip\""
+    },
+    {
+      "name": "get_vulnerability_details",
+      "description": "Get detailed vulnerability information",
+      "usage": "@depguard get_vulnerability_details sessionId=\"session-123\""
+    },
+    {
+      "name": "get_package_details",
+      "description": "Get package maintenance and upgrade info",
+      "usage": "@depguard get_package_details packageName=\"lodash\""
+    }
+  ],
+  "prompts": [
+    {
+      "name": "security_audit_report",
+      "description": "Generate comprehensive security audit",
+      "usage": "@depguard Use security_audit_report with analysis results"
+    },
+    {
+      "name": "migration_plan",
+      "description": "Create step-by-step migration plan",
+      "usage": "@depguard Use migration_plan with vulnerability data"
+    },
+    {
+      "name": "risk_assessment",
+      "description": "Assess security risks and prioritize fixes",
+      "usage": "@depguard Use risk_assessment with analysis results"
+    }
+  ]
+}
