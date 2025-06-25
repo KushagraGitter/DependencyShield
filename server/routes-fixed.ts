@@ -467,13 +467,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Both package.json files are required." });
       }
 
-      const pkg1 = JSON.parse(files.package1[0].buffer.toString("utf-8"));
-      const pkg2 = JSON.parse(files.package2[0].buffer.toString("utf-8"));
+      const pkg1Buffer = files.package1[0].buffer;
+      const pkg2Buffer = files.package2[0].buffer;
+      const pkg1 = JSON.parse(pkg1Buffer.toString("utf-8"));
+      const pkg2 = JSON.parse(pkg2Buffer.toString("utf-8"));
 
       const deps1 = { ...pkg1.dependencies, ...pkg1.devDependencies };
       const deps2 = { ...pkg2.dependencies, ...pkg2.devDependencies };
-
-      const osvService = new OSVService();
 
       // Group dependencies
       const sharedSameVersion: Record<string, string> = {};
@@ -501,74 +501,69 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Shared, same version
-      const sharedSameVulns = await osvService.fetchMultiplePackagesWithVersionsBatch(sharedSameVersion);
+      // --- Use npm audit for vulnerabilities instead of OSVService ---
+      // Analyze both package.json files using npm audit
 
-      // Shared, different version: fetch for both versions
-      const sharedDiffVulns: Record<string, { version1: any[], version2: any[], added: any[], removed: any[] }> = {};
-      for (const dep of Object.keys(sharedDifferentVersion)) {
-        const { version1, version2 } = sharedDifferentVersion[dep];
-        const v1 = await osvService.fetchVulnerabilities(dep, version1);
-        const v2 = await osvService.fetchVulnerabilities(dep, version2);
-
-        // Find vulnerabilities added in version2 (present in v2 but not in v1)
-        const v1Ids = new Set(v1.map((v: any) => v.id));
-        const v2Ids = new Set(v2.map((v: any) => v.id));
-
-        const added = v2.filter((v: any) => !v1Ids.has(v.id)).map((v: any) => ({
-          id: v.id,
-          cve: v.cve
-        }));
-        const removed = v1.filter((v: any) => !v2Ids.has(v.id)).map((v: any) => ({
-          id: v.id,
-          cve: v.cve
-        }));
-
-        sharedDiffVulns[dep] = { version1: v1, version2: v2, added, removed };
-      }
-
-      // Only in package 2
-      const onlyInPkg2Vulns = await osvService.fetchMultiplePackagesWithVersionsBatch(onlyInPkg2);
-      const onlyInPkg2Added: Record<string, { id: string, cve?: string }[]> = {};
-      for (const dep of Object.keys(onlyInPkg2Vulns)) {
-        onlyInPkg2Added[dep] = (onlyInPkg2Vulns[dep] || []).map((v: any) => ({
-          id: v.id,
-          cve: v.cve
-        }));
-      }
-
-
-      const onlyInPkg1Vulns = await osvService.fetchMultiplePackagesWithVersionsBatch(onlyInPkg1);
-      const onlyInPkg1Removed: Record<string, { id: string, cve?: string }[]> = {};
-      for (const dep of Object.keys(onlyInPkg1Vulns)) {
-        onlyInPkg1Removed[dep] = (onlyInPkg1Vulns[dep] || []).map((v: any) => ({
-          id: v.id,
-          cve: v.cve
-        }));
-      }
-
-      // Prepare sharedSameVersionVulns for output: show any vulnerabilities for same-version deps
-      const sharedSameVersionVulns: Record<string, { id: string, cve?: string }[]> = {};
-      for (const dep of Object.keys(sharedSameVulns)) {
-        const vulns = sharedSameVulns[dep] || [];
-        if (vulns.length > 0) {
-          sharedSameVersionVulns[dep] = vulns.map((v: any) => ({
-            id: v.id,
-            cve: v.cve
-          }));
+      // Helper to run npm audit for a given package.json buffer
+      async function auditPackageJsonBuffer(pkgBuffer: Buffer) {
+        const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'depguard-compare-'));
+        try {
+          const auditResult = await runNpmAudit(pkgBuffer.toString("utf-8"), tempDir);
+          // Map: depName -> array of vuln objects
+          const depVulns: Record<string, any[]> = {};
+          for (const vuln of auditResult.vulnerabilities) {
+            if (!depVulns[vuln.package]) depVulns[vuln.package] = [];
+            depVulns[vuln.package].push({
+              id: vuln.id,
+              cve: vuln.cve
+            });
+          }
+          return depVulns;
+        } finally {
+          await fs.rm(tempDir, { recursive: true, force: true }).catch(() => {});
         }
       }
 
+      const [vulns1, vulns2] = await Promise.all([
+        auditPackageJsonBuffer(pkg1Buffer),
+        auditPackageJsonBuffer(pkg2Buffer)
+      ]);
+
+      // Shared, same version: show any vulnerabilities for same-version deps
+      const sharedSameVersionVulns: Record<string, { id: string, cve?: string }[]> = {};
+      for (const dep of Object.keys(sharedSameVersion)) {
+        const v1 = vulns1[dep] || [];
+        if (v1.length > 0) {
+          sharedSameVersionVulns[dep] = v1;
+        }
+      }
+
+      // Shared, different version: fetch for both versions, diff
+      const sharedDiffVulns: Record<string, { added: any[], removed: any[] }> = {};
+      for (const dep of Object.keys(sharedDifferentVersion)) {
+        const v1 = vulns1[dep] || [];
+        const v2 = vulns2[dep] || [];
+        const v1Ids = new Set(v1.map((v: any) => v.id));
+        const v2Ids = new Set(v2.map((v: any) => v.id));
+        const added = v2.filter((v: any) => !v1Ids.has(v.id));
+        const removed = v1.filter((v: any) => !v2Ids.has(v.id));
+        sharedDiffVulns[dep] = { added, removed };
+      }
+
+      // Only in package 2
+      const onlyInPkg2Added: Record<string, { id: string, cve?: string }[]> = {};
+      for (const dep of Object.keys(onlyInPkg2)) {
+        onlyInPkg2Added[dep] = vulns2[dep] || [];
+      }
+
+      // Only in package 1
+      const onlyInPkg1Removed: Record<string, { id: string, cve?: string }[]> = {};
+      for (const dep of Object.keys(onlyInPkg1)) {
+        onlyInPkg1Removed[dep] = vulns1[dep] || [];
+      }
+
       res.json({
-        sharedDifferentVersion: Object.fromEntries(
-          Object.entries(sharedDiffVulns).map(([dep, data]) => [
-            dep,
-            {
-              added: data.added,
-              removed: data.removed
-            }
-          ])
-        ),
+        sharedDifferentVersion: sharedDiffVulns,
         sharedSameVersion: sharedSameVersionVulns,
         onlyInPackage2: onlyInPkg2Added,
         onlyInPackage1: onlyInPkg1Removed
