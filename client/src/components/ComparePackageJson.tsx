@@ -50,10 +50,9 @@ export const ComparePackageJson = ({ package1 }) => {
 
     try {
       const formData = new FormData();
-      // package1 is the original (from analysisResult), packageFile is the new uploaded one
-    
-      formData.append("package1", package1, packageIn.name);
-      formData.append("package2", packageFile, packageFile.name);
+      // Package1 is the current package, package2 is the previous version package
+      formData.append("package1", packageFile, packageFile.name);
+      formData.append("package2", packageIn, packageIn.name);
       const res = await fetch("/api/compare-packages", {
         method: "POST",
         body: formData,
@@ -80,8 +79,8 @@ export const ComparePackageJson = ({ package1 }) => {
     setDetailedAnalysis(null);
     try {
       const formData = new FormData();
-      formData.append("package1", package1, packageIn.name);
-      formData.append("package2", packageFile, packageFile.name);
+      formData.append("package1", packageFile, packageFile.name);
+      formData.append("package2", package1, package1.name);
       const res = await fetch("/api/compare-changelogs", {
         method: "POST",
         body: formData,
@@ -265,6 +264,12 @@ export const ComparePackageJson = ({ package1 }) => {
         <FileCode className="text-blue-600 w-6 h-6" />
       </div>
       <h3 className="font-semibold text-slate-900 mb-2">Compare <code>package.json</code></h3>
+      <div className="mb-3 text-xs text-slate-600">
+        <span>
+          <strong>Note:</strong> This tool compares your current <code>package.json</code> with a previous version.
+          Please upload the <span className="font-semibold">previous version</span> of your <code>package.json</code> below.
+        </span>
+      </div>
       {packageFile ? (
         <div className="space-y-2">
           <div className="flex items-center justify-center space-x-2">
@@ -282,7 +287,6 @@ export const ComparePackageJson = ({ package1 }) => {
             </Button>
           </div>
           <p className="text-xs text-slate-500">{(packageFile.size / 1024).toFixed(1)} KB</p>
-          <p className="text-xs text-green-600">File will be used for vulnerability comparison</p>
         </div>
       ) : (
         <>
