@@ -3,7 +3,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { FileCode, X } from "lucide-react";
 
-export const ComparePackageJson = ({package1}) => {
+export const ComparePackageJson = () => {
   const [packageFile, setPackageFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);

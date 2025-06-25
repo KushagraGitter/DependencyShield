@@ -144,7 +144,7 @@ export default function Dashboard() {
 
         {/* Real-Time Vulnerability Checker */}
         <RealTimeVulnerabilityChecker />
-        {analysisResult &&<ComparePackageJson package1={uploadFiles?.packageJson}/>}
+        {analysisResult &&<ComparePackageJson />}
       </div>
     </div>
   );
