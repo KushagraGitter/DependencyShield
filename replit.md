@@ -16,18 +16,21 @@ DepGuard AI is an intelligent NPM vulnerability analysis and migration assistanc
 - CISA Known Exploited Vulnerabilities tracking
 - Comprehensive risk scoring and priority assessment
 - Threat intelligence integration
+- **Deprecated package detection with alternative package suggestions**
+- Alternative package recommendations with migration guidance
 - Real-time analysis progress tracking
 - Comprehensive vulnerability details modal with tabbed CVE interface
 
 ## Recent Changes
+- **2025-06-25**: Implemented deprecated package detection and alternative package suggestions system
+- **2025-06-25**: Created comprehensive alternative packages mapping with 70+ deprecated package replacements
+- **2025-06-25**: Added AlternativePackagesCard component with migration guidance and installation commands
+- **2025-06-25**: Enhanced package details API to include deprecation status and alternative recommendations
+- **2025-06-25**: Fixed vulnerable methods section to properly clear data when switching between vulnerabilities
 - **2025-06-25**: Implemented comprehensive CVE tracking and detailed vulnerability information system
 - **2025-06-25**: Added multi-source CVE data aggregation from NVD, GitHub Advisory, and MITRE databases
 - **2025-06-25**: Integrated EPSS scoring and CISA KEV tracking for enhanced threat assessment
 - **2025-06-25**: Created dedicated CVE details tab in vulnerability modal with comprehensive risk scoring
-- **2025-06-25**: Added CVE API endpoints for detailed vulnerability information retrieval
-- **2025-06-25**: Fixed npm audit ENOLOCK error with proper fallback mechanism for projects without package-lock.json
-- **2025-06-25**: Enhanced project impact analysis to show actual code usage data instead of placeholder values
-- **2025-06-25**: Improved vulnerability analysis to display specific vulnerable methods and line numbers from AST parsing
 - **2025-06-25**: Created comprehensive feature documentation covering complete project architecture
 - **2025-06-25**: Documented all frontend, backend, MCP server, and integration capabilities
 - **2025-06-25**: Fixed IPv6/IPv4 connection issues in MCP server - now uses 127.0.0.1 instead of localhost
