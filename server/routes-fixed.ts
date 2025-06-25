@@ -578,6 +578,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // New route: Compare release notes for common dependencies between two package.json files
+  app.post("/api/compare-changelogs", upload.fields([
+    { name: "package1", maxCount: 1 },
+    { name: "package2", maxCount: 1 }
+  ]), async (req: Request, res: Response) => {
+    try {
+      const files = req.files as { [fieldname: string]: Express.Multer.File[] };
+      if (!files?.package1?.[0] || !files?.package2?.[0]) {
+        return res.status(400).json({ error: "Both package.json files are required." });
+      }
+
+      const pkg1 = JSON.parse(files.package1[0].buffer.toString("utf-8"));
+      const pkg2 = JSON.parse(files.package2[0].buffer.toString("utf-8"));
+
+      const deps1 = { ...pkg1.dependencies, ...pkg1.devDependencies };
+      const deps2 = { ...pkg2.dependencies, ...pkg2.devDependencies };
+
+      // Find common dependencies
+      const commonDeps = Object.keys(deps1).filter(dep => dep in deps2);
+
+      // For each common dependency, call compareReleaseNotes with version from pkg1 and pkg2
+      const results: Record<string, any> = {};
+      for (const dep of commonDeps) {
+        try {
+          const fromVersion = deps1[dep];
+          const toVersion = deps2[dep];
+          if(fromVersion !== toVersion) {
+              results[dep] = await compareReleaseNotes(dep, fromVersion, toVersion);
+          }
+        } catch (err) {
+          results[dep] = { error: (err as Error).message || "Failed to compare release notes" };
+        }
+      }
+
+      res.json(results);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || "Internal server error" });
+    }
+  });
+
   const server = createServer(app);
   return server;
 }
