@@ -20,6 +20,7 @@ export default function Dashboard() {
   });
 
   const {
+    uploadedFiles,
     uploadFiles,
     analysisResult,
     isAnalyzing,
@@ -144,7 +145,7 @@ export default function Dashboard() {
 
         {/* Real-Time Vulnerability Checker */}
         <RealTimeVulnerabilityChecker />
-        {analysisResult &&<ComparePackageJson />}
+        {uploadedFiles.packageJson &&<ComparePackageJson package1={uploadedFiles?.packageJson}/>}
       </div>
     </div>
   );

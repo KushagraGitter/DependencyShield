@@ -305,9 +305,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const osvService = new OSVService();
         const packageJson = JSON.parse(packageJsonContent);
         const dependencies = { ...packageJson.dependencies, ...packageJson.devDependencies };
-        const osvVulnsMap = await osvService.fetchMultiplePackagesWithVersionsBatch(dependencies);
+        // const osvVulnsMap = await osvService.fetchMultiplePackagesWithVersionsBatch(dependencies);
         // Flatten vulnerabilities from the map to an array
-        const osVuln: any[] = Object.values(osvVulnsMap).flat();
+        // const osVuln: any[] = Object.values(osvVulnsMap).flat();
 
         // Process source files if provided
         let codeAnalysis: any = null;
@@ -330,7 +330,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         // Enrich vulnerabilities with CVE details and usage analysis
         const enrichedVulnerabilities = await Promise.all(
-          osVuln.map(async (vuln: any) => {
+          auditResult.vulnerabilities.map(async (vuln: any) => {
             try {
               const enrichedVuln = await enrichVulnerabilityWithCVE(vuln);
               
@@ -547,6 +547,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }));
       }
 
+      // Prepare sharedSameVersionVulns for output: show any vulnerabilities for same-version deps
+      const sharedSameVersionVulns: Record<string, { id: string, cve?: string }[]> = {};
+      for (const dep of Object.keys(sharedSameVulns)) {
+        const vulns = sharedSameVulns[dep] || [];
+        if (vulns.length > 0) {
+          sharedSameVersionVulns[dep] = vulns.map((v: any) => ({
+            id: v.id,
+            cve: v.cve
+          }));
+        }
+      }
+
       res.json({
         sharedDifferentVersion: Object.fromEntries(
           Object.entries(sharedDiffVulns).map(([dep, data]) => [
@@ -557,6 +569,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
           ])
         ),
+        sharedSameVersion: sharedSameVersionVulns,
         onlyInPackage2: onlyInPkg2Added,
         onlyInPackage1: onlyInPkg1Removed
       });

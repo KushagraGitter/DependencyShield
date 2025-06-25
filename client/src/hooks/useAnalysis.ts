@@ -124,6 +124,7 @@ export function useAnalysis() {
 
   return {
     uploadFiles,
+    uploadedFiles,
     analysisResult: analysismutation.data,
     isAnalyzing: analysismutation.isPending,
     progress,
