@@ -69,7 +69,7 @@ Add the DepGuard MCP server to your MCP configuration file (usually `~/.mcpconfi
       "command": "node",
       "args": ["/absolute/path/to/your/project/mcp-server/dist/index.js"],
       "env": {
-        "DEPGUARD_API_URL": "http://localhost:5000"
+        "DEPGUARD_API_URL": "http://127.0.0.1:5000"
       }
     }
   }

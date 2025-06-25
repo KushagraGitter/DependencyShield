@@ -20,8 +20,8 @@ import { writeFileSync, unlinkSync, existsSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 
-// Define the base URL for the DepGuard API
-const DEPGUARD_API_BASE = process.env.DEPGUARD_API_URL || 'http://localhost:5000';
+// Define the base URL for the DepGuard API - use IPv4 to avoid IPv6 issues
+const DEPGUARD_API_BASE = process.env.DEPGUARD_API_URL || 'http://127.0.0.1:5000';
 
 // Add connection validation
 async function validateApiConnection(): Promise<boolean> {
