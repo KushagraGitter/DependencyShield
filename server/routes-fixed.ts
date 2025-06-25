@@ -105,6 +105,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   complexityScore: packageUsage.complexityScore,
                   fileUsage: packageUsage.fileUsage,
                 };
+                console.log(`Added usage analysis for ${vuln.package}: ${packageUsage.fileUsage.length} files, ${packageUsage.usageNodes.length} methods`);
               }
               // Don't add usageAnalysis if we don't have actual data
               

@@ -15,11 +15,12 @@ DepGuard AI is an intelligent NPM vulnerability analysis and migration assistanc
 - Comprehensive vulnerability details modal with tabbed interface
 
 ## Recent Changes
+- **2025-06-25**: Fixed npm audit ENOLOCK error with proper fallback mechanism for projects without package-lock.json
+- **2025-06-25**: Enhanced project impact analysis to show actual code usage data instead of placeholder values
+- **2025-06-25**: Improved vulnerability analysis to display specific vulnerable methods and line numbers from AST parsing
+- **2025-06-25**: Added graceful error handling for npm audit failures with comprehensive fallback analysis
 - **2025-06-25**: Created comprehensive feature documentation covering complete project architecture
 - **2025-06-25**: Documented all frontend, backend, MCP server, and integration capabilities
-- **2025-06-25**: Added enterprise features, use cases, and future roadmap documentation
-- **2025-06-25**: Created comprehensive API documentation with all endpoints, request/response structures
-- **2025-06-25**: Added practical examples and integration guides for all API endpoints
 - **2025-06-25**: Fixed IPv6/IPv4 connection issues in MCP server - now uses 127.0.0.1 instead of localhost
 
 ## Architecture
