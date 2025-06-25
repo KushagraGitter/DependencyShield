@@ -14,6 +14,7 @@ import { generateAutomatedMigration } from "./services/migrationGenerator";
 import { analyzeChangelog, compareReleaseNotes } from "./services/changelogAnalysis";
 import { storage } from "./storage";
 import packageDetailsRoutes from "./routes/packageDetailsRoutes";
+import { OSVService } from "./services/realtimeVulnerabilityService";
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -301,12 +302,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       try {
         const auditResult = await runNpmAudit(packageJsonContent, tempDir);
         
+        const osvService = new OSVService();
+        const packageJson = JSON.parse(packageJsonContent);
+        const dependencies = { ...packageJson.dependencies, ...packageJson.devDependencies };
+        const osvVulnsMap = await osvService.fetchMultiplePackagesWithVersionsBatch(dependencies);
+        // Flatten vulnerabilities from the map to an array
+        const osVuln: any[] = Object.values(osvVulnsMap).flat();
+
         // Process source files if provided
         let codeAnalysis: any = null;
         let astAnalysis: any = null;
         if (sourceFiles.length > 0) {
-          const packageJson = JSON.parse(packageJsonContent);
-          const dependencies = { ...packageJson.dependencies, ...packageJson.devDependencies };
+          // const packageJson = JSON.parse(packageJsonContent);
+          // const dependencies = { ...packageJson.dependencies, ...packageJson.devDependencies };
           
           codeAnalysis = await analyzeCodeUsage(sourceFiles, dependencies);
           
@@ -320,8 +328,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         const sessionId = `session-${Date.now()}-${Math.random().toString(36).substring(2)}`;
         
+        // Enrich vulnerabilities with CVE details and usage analysis
         const enrichedVulnerabilities = await Promise.all(
-          auditResult.vulnerabilities.map(async (vuln: any) => {
+          osVuln.map(async (vuln: any) => {
             try {
               const enrichedVuln = await enrichVulnerabilityWithCVE(vuln);
               
@@ -444,6 +453,115 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Failed to fetch analysis result:', error);
       res.status(500).json({ error: "Failed to fetch analysis result" });
+    }
+  });
+
+  // Compare two package.json files and fetch vulnerabilities for each dependency using OSV, grouped by diff
+  app.post("/api/compare-packages", upload.fields([
+    { name: "package1", maxCount: 1 },
+    { name: "package2", maxCount: 1 }
+  ]), async (req: Request, res: Response) => {
+    try {
+      const files = req.files as { [fieldname: string]: Express.Multer.File[] };
+      if (!files?.package1?.[0] || !files?.package2?.[0]) {
+        return res.status(400).json({ error: "Both package.json files are required." });
+      }
+
+      const pkg1 = JSON.parse(files.package1[0].buffer.toString("utf-8"));
+      const pkg2 = JSON.parse(files.package2[0].buffer.toString("utf-8"));
+
+      const deps1 = { ...pkg1.dependencies, ...pkg1.devDependencies };
+      const deps2 = { ...pkg2.dependencies, ...pkg2.devDependencies };
+
+      const osvService = new OSVService();
+
+      // Group dependencies
+      const sharedSameVersion: Record<string, string> = {};
+      const sharedDifferentVersion: Record<string, { version1: string, version2: string }> = {};
+      const onlyInPkg2: Record<string, string> = {};
+
+      for (const [dep, version2] of Object.entries(deps2)) {
+        if (dep in deps1) {
+          const version1 = deps1[dep];
+          if (version1 === version2) {
+            sharedSameVersion[dep] = version2;
+          } else {
+            sharedDifferentVersion[dep] = { version1, version2 };
+          }
+        } else {
+          onlyInPkg2[dep] = version2;
+        }
+      }
+
+      // Only in package 1 (removed from package2)
+      const onlyInPkg1: Record<string, string> = {};
+      for (const [dep, version1] of Object.entries(deps1)) {
+        if (!(dep in deps2)) {
+          onlyInPkg1[dep] = version1;
+        }
+      }
+
+      // Shared, same version
+      const sharedSameVulns = await osvService.fetchMultiplePackagesWithVersionsBatch(sharedSameVersion);
+
+      // Shared, different version: fetch for both versions
+      const sharedDiffVulns: Record<string, { version1: any[], version2: any[], added: any[], removed: any[] }> = {};
+      for (const dep of Object.keys(sharedDifferentVersion)) {
+        const { version1, version2 } = sharedDifferentVersion[dep];
+        const v1 = await osvService.fetchVulnerabilities(dep, version1);
+        const v2 = await osvService.fetchVulnerabilities(dep, version2);
+
+        // Find vulnerabilities added in version2 (present in v2 but not in v1)
+        const v1Ids = new Set(v1.map((v: any) => v.id));
+        const v2Ids = new Set(v2.map((v: any) => v.id));
+
+        const added = v2.filter((v: any) => !v1Ids.has(v.id)).map((v: any) => ({
+          id: v.id,
+          cve: v.cve
+        }));
+        const removed = v1.filter((v: any) => !v2Ids.has(v.id)).map((v: any) => ({
+          id: v.id,
+          cve: v.cve
+        }));
+
+        sharedDiffVulns[dep] = { version1: v1, version2: v2, added, removed };
+      }
+
+      // Only in package 2
+      const onlyInPkg2Vulns = await osvService.fetchMultiplePackagesWithVersionsBatch(onlyInPkg2);
+      const onlyInPkg2Added: Record<string, { id: string, cve?: string }[]> = {};
+      for (const dep of Object.keys(onlyInPkg2Vulns)) {
+        onlyInPkg2Added[dep] = (onlyInPkg2Vulns[dep] || []).map((v: any) => ({
+          id: v.id,
+          cve: v.cve
+        }));
+      }
+
+
+      const onlyInPkg1Vulns = await osvService.fetchMultiplePackagesWithVersionsBatch(onlyInPkg1);
+      const onlyInPkg1Removed: Record<string, { id: string, cve?: string }[]> = {};
+      for (const dep of Object.keys(onlyInPkg1Vulns)) {
+        onlyInPkg1Removed[dep] = (onlyInPkg1Vulns[dep] || []).map((v: any) => ({
+          id: v.id,
+          cve: v.cve
+        }));
+      }
+
+      res.json({
+        sharedDifferentVersion: Object.fromEntries(
+          Object.entries(sharedDiffVulns).map(([dep, data]) => [
+            dep,
+            {
+              added: data.added,
+              removed: data.removed
+            }
+          ])
+        ),
+        onlyInPackage2: onlyInPkg2Added,
+        onlyInPackage1: onlyInPkg1Removed
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || "Internal server error" });
     }
   });
 

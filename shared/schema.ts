@@ -41,8 +41,8 @@ export interface Vulnerability {
   version: string;
   severity: 'critical' | 'high' | 'moderate' | 'low';
   description: string;
-  cve?: string;
-  cvss?: number;
+  cve: string;
+  cvss: number;
   fixedIn?: string;
   usageAnalysis?: {
     filesAffected: number;
@@ -56,7 +56,7 @@ export interface Vulnerability {
       lineNumbers: number[];
     }[];
   };
-  cveDetails?: {
+  cveDetails: {
     id: string;
     description: string;
     publishedDate: string;

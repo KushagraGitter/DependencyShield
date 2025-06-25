@@ -11,6 +11,7 @@ import { AIMigrationSuggestions } from "@/components/AIMigrationSuggestions";
 import { AutomatedMigrationGuide } from "@/components/AutomatedMigrationGuide";
 import { RealTimeVulnerabilityChecker } from "@/components/RealTimeVulnerabilityChecker";
 import { useAnalysis } from "@/hooks/useAnalysis";
+import { ComparePackageJson } from "@/components/ComparePackageJson";
 
 export default function Dashboard() {
   const [analysisOptions, setAnalysisOptions] = useState({
@@ -143,6 +144,7 @@ export default function Dashboard() {
 
         {/* Real-Time Vulnerability Checker */}
         <RealTimeVulnerabilityChecker />
+        {analysisResult &&<ComparePackageJson package1={uploadFiles?.packageJson}/>}
       </div>
     </div>
   );
