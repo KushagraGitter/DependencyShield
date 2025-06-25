@@ -15,12 +15,12 @@ DepGuard AI is an intelligent NPM vulnerability analysis and migration assistanc
 - Comprehensive vulnerability details modal with tabbed interface
 
 ## Recent Changes
+- **2025-06-25**: Created comprehensive API documentation with all endpoints, request/response structures
+- **2025-06-25**: Added practical examples and integration guides for all API endpoints
 - **2025-06-25**: Fixed IPv6/IPv4 connection issues in MCP server - now uses 127.0.0.1 instead of localhost
 - **2025-06-25**: Resolved ECONNREFUSED errors by correcting network configuration
 - **2025-06-25**: Successfully built and tested MCP server for GitHub Copilot integration
 - **2025-06-25**: Added health endpoint and connection validation to main API
-- **2025-06-25**: Created comprehensive testing and setup scripts for MCP server
-- **2025-06-25**: Added LLM-powered release notes comparison feature
 
 ## Architecture
 - **Frontend**: React with TypeScript, Vite, Tailwind CSS, shadcn/ui components
