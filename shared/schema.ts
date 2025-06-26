@@ -44,6 +44,8 @@ export interface Vulnerability {
   cve: string;
   cvss: number;
   fixedIn?: string;
+  isDirect?: boolean;
+  dependencyPath?: string[];
   usageAnalysis?: {
     filesAffected: number;
     methodsUsed: string[];

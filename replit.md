@@ -18,19 +18,22 @@ DepGuard AI is an intelligent NPM vulnerability analysis and migration assistanc
 - Threat intelligence integration
 - **Deprecated package detection with alternative package suggestions**
 - Alternative package recommendations with migration guidance
+- **Dependency hierarchy tracking for direct vs transitive dependencies**
+- Visual dependency chain mapping showing parent-child relationships
+- Specialized resolution strategies for transitive dependency vulnerabilities
 - Real-time analysis progress tracking
 - Comprehensive vulnerability details modal with tabbed CVE interface
 
 ## Recent Changes
+- **2025-06-25**: Implemented dependency hierarchy tracking to distinguish direct vs transitive dependencies
+- **2025-06-25**: Added DependencyHierarchy component showing dependency chains and resolution strategies
+- **2025-06-25**: Created VulnerabilityBadge component to visually distinguish direct/transitive dependencies
+- **2025-06-25**: Enhanced vulnerability schema to include isDirect and dependencyPath fields
+- **2025-06-25**: Updated vulnerability list to show dependency type badges for each vulnerability
 - **2025-06-25**: Implemented deprecated package detection and alternative package suggestions system
 - **2025-06-25**: Created comprehensive alternative packages mapping with 70+ deprecated package replacements
 - **2025-06-25**: Added AlternativePackagesCard component with migration guidance and installation commands
 - **2025-06-25**: Enhanced package details API to include deprecation status and alternative recommendations
-- **2025-06-25**: Fixed vulnerable methods section to properly clear data when switching between vulnerabilities
-- **2025-06-25**: Implemented comprehensive CVE tracking and detailed vulnerability information system
-- **2025-06-25**: Added multi-source CVE data aggregation from NVD, GitHub Advisory, and MITRE databases
-- **2025-06-25**: Integrated EPSS scoring and CISA KEV tracking for enhanced threat assessment
-- **2025-06-25**: Created dedicated CVE details tab in vulnerability modal with comprehensive risk scoring
 - **2025-06-25**: Created comprehensive feature documentation covering complete project architecture
 - **2025-06-25**: Documented all frontend, backend, MCP server, and integration capabilities
 - **2025-06-25**: Fixed IPv6/IPv4 connection issues in MCP server - now uses 127.0.0.1 instead of localhost
