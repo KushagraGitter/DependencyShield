@@ -48,6 +48,18 @@ export interface CVEDetails {
   hasExploit: boolean;
   patchAvailable: boolean;
   affectedPackages: string[];
+  weaknesses?: {
+    source: string;
+    type: string;
+    description: string;
+  }[];
+  epssScore?: number; // Exploit Prediction Scoring System
+  cisaKev?: boolean; // CISA Known Exploited Vulnerabilities
+  threatIntelligence?: {
+    exploitInWild: boolean;
+    malwareUse: boolean;
+    threatActors: string[];
+  };
 }
 
 export interface SecurityAdvisory {

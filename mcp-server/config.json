@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "depguard": {
+      "command": "node",
+      "args": ["./mcp-server/dist/index.js"],
+      "env": {
+        "DEPGUARD_API_URL": "http://127.0.0.1:5000"
+      }
+    }
+  }
+}

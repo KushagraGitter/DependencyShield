@@ -60,6 +60,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Register package details routes
   app.use('/api', packageDetailsRoutes);
 
+  // Health check endpoint
+  app.get("/api/health", (_req: Request, res: Response) => {
+    res.json({ 
+      status: "ok", 
+      timestamp: new Date().toISOString(),
+      version: "1.0.0",
+      services: {
+        api: "running",
+        database: "connected",
+        ai: process.env.OPENAI_API_KEY ? "configured" : "missing"
+      }
+    });
+  });
+
   // JSON endpoint for simplified testing
   app.post("/api/analyze-json", async (req: Request, res: Response) => {
     try {
@@ -76,20 +90,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const auditResult = await runNpmAudit(packageJsonContent, tempDir);
         const sessionId = `session-${Date.now()}-${Math.random().toString(36).substring(2)}`;
         
-        // Enrich vulnerabilities with CVE details and usage analysis
+        // Enrich vulnerabilities with CVE details and actual usage analysis
         const enrichedVulnerabilities = await Promise.all(
           auditResult.vulnerabilities.map(async (vuln: any) => {
             try {
               const enrichedVuln = await enrichVulnerabilityWithCVE(vuln);
               
-              // Add usage analysis from code analysis (for now, AST analysis methods detection needs improvement)
-              enrichedVuln.usageAnalysis = {
-                filesAffected: 0,
-                methodsUsed: [],
-                migrationRisk: 'low',
-                complexityScore: 0,
-                fileUsage: [],
-              };
+              // Get actual usage analysis from AST results if available
+              if (astAnalysis && astAnalysis.packageUsage[vuln.package]) {
+                const packageUsage = astAnalysis.packageUsage[vuln.package];
+                enrichedVuln.usageAnalysis = {
+                  filesAffected: packageUsage.fileUsage.length,
+                  methodsUsed: packageUsage.usageNodes,
+                  migrationRisk: packageUsage.migrationRisk,
+                  complexityScore: packageUsage.complexityScore,
+                  fileUsage: packageUsage.fileUsage,
+                };
+                console.log(`Added usage analysis for ${vuln.package}: ${packageUsage.fileUsage.length} files, ${packageUsage.usageNodes.length} methods`);
+              }
+              // Don't add usageAnalysis if we don't have actual data
               
               return enrichedVuln;
             } catch (error) {
