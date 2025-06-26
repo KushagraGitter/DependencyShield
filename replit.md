@@ -25,7 +25,9 @@ DepGuard AI is an intelligent NPM vulnerability analysis and migration assistanc
 - Comprehensive vulnerability details modal with tabbed CVE interface
 
 ## Recent Changes
-- **2025-06-26**: Enhanced MCP server with 5 new tools: single package analysis, package.json file scanning, dependency hierarchy checking, and alternative package suggestions
+- **2025-06-26**: Successfully updated MCP server (v2.0.0) with 5 new tools for comprehensive vulnerability analysis
+- **2025-06-26**: Added scan_package_json_file, analyze_single_package, check_dependency_hierarchy, and get_alternative_packages tools
+- **2025-06-26**: Enhanced MCP server with dependency hierarchy tracking and alternative package suggestions
 - **2025-06-26**: Fixed hardcoded version values in vulnerability details modal to show actual package versions
 - **2025-06-26**: Updated npm audit parsing to properly detect direct vs transitive dependencies with dependency path tracking
 - **2025-06-26**: Improved MCP server error handling and added comprehensive package.json file support
