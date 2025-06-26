@@ -25,6 +25,8 @@ DepGuard AI is an intelligent NPM vulnerability analysis and migration assistanc
 - Comprehensive vulnerability details modal with tabbed CVE interface
 
 ## Recent Changes
+- **2025-06-26**: Fixed Real-Time Vulnerability Checker API integration and added direct vulnerability endpoint
+- **2025-06-26**: Implemented OSV and GitHub Advisory database integration for npm audit-independent vulnerability checking
 - **2025-06-26**: Enhanced Real-Time Vulnerability Checker with single package analysis and version specification support
 - **2025-06-26**: Added tabbed interface showing package details and vulnerability analysis separately
 - **2025-06-26**: Integrated dependency hierarchy tracking and deprecation warnings in real-time checker
