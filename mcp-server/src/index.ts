@@ -55,10 +55,28 @@ const GetPackageDetailsSchema = z.object({
   includeReleaseComparison: z.boolean().default(false).describe('Whether to include release notes comparison')
 });
 
+const ScanPackageJsonFileSchema = z.object({
+  filePath: z.string().describe('Path to the package.json file')
+});
+
+const AnalyzeSinglePackageSchema = z.object({
+  packageName: z.string().describe('Name of the npm package to analyze'),
+  version: z.string().optional().describe('Specific version to analyze')
+});
+
+const CheckDependencyHierarchySchema = z.object({
+  packageJsonContent: z.string().describe('The package.json content as a string'),
+  targetPackage: z.string().describe('The package to check dependency hierarchy for')
+});
+
+const GetAlternativePackagesSchema = z.object({
+  packageName: z.string().describe('Name of the package to find alternatives for')
+});
+
 const server = new Server(
   {
     name: 'depguard-mcp-server',
-    version: '1.0.0',
+    version: '2.0.0',
   },
   {
     capabilities: {
@@ -142,6 +160,70 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
               type: 'boolean',
               description: 'Whether to include release notes comparison',
               default: false
+            }
+          },
+          required: ['packageName']
+        }
+      },
+      {
+        name: 'scan_package_json_file',
+        description: 'Scan a package.json file from the filesystem for vulnerabilities with dependency hierarchy tracking',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            filePath: {
+              type: 'string',
+              description: 'Path to the package.json file (relative to current working directory)'
+            }
+          },
+          required: ['filePath']
+        }
+      },
+      {
+        name: 'analyze_single_package',
+        description: 'Analyze a single npm package for vulnerabilities and get package details with alternative suggestions',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            packageName: {
+              type: 'string',
+              description: 'Name of the npm package to analyze'
+            },
+            version: {
+              type: 'string',
+              description: 'Specific version to analyze (optional, defaults to latest)'
+            }
+          },
+          required: ['packageName']
+        }
+      },
+      {
+        name: 'check_dependency_hierarchy',
+        description: 'Check if a vulnerability is from direct or transitive dependencies and show dependency chain',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            packageJsonContent: {
+              type: 'string',
+              description: 'The package.json content as a string'
+            },
+            targetPackage: {
+              type: 'string',
+              description: 'The package to check dependency hierarchy for'
+            }
+          },
+          required: ['packageJsonContent', 'targetPackage']
+        }
+      },
+      {
+        name: 'get_alternative_packages',
+        description: 'Get alternative packages for deprecated or vulnerable packages with migration guidance',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            packageName: {
+              type: 'string',
+              description: 'Name of the package to find alternatives for'
             }
           },
           required: ['packageName']
@@ -257,6 +339,281 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             {
               type: 'text',
               text: `# Package Details: ${packageName}\n\n${JSON.stringify(response.data, null, 2)}`
+            }
+          ]
+        };
+      }
+
+      case 'scan_package_json_file': {
+        const { filePath } = args;
+        
+        if (!filePath || typeof filePath !== 'string') {
+          throw new McpError(ErrorCode.InvalidParams, 'Invalid file path provided');
+        }
+
+        // Read and parse the package.json file
+        if (!existsSync(filePath)) {
+          throw new McpError(ErrorCode.InvalidParams, `File not found: ${filePath}`);
+        }
+
+        const fileContent = require('fs').readFileSync(filePath, 'utf8');
+        let packageJsonContent;
+        
+        try {
+          packageJsonContent = JSON.parse(fileContent);
+        } catch (parseError) {
+          throw new McpError(ErrorCode.InvalidParams, `Invalid JSON in package.json file: ${parseError instanceof Error ? parseError.message : 'Parse error'}`);
+        }
+
+        // Validate API connection
+        const isConnected = await validateApiConnection();
+        if (!isConnected) {
+          throw new McpError(ErrorCode.InternalError, 'Unable to connect to DepGuard AI API. Please ensure the server is running on http://127.0.0.1:5000');
+        }
+
+        const response = await axios.post(
+          `${DEPGUARD_API_BASE}/api/analyze-json`,
+          { packageJson: packageJsonContent },
+          { headers: { 'Content-Type': 'application/json' } }
+        );
+
+        const result = response.data;
+        const formattedVulns = result.vulnerabilities?.map((vuln: any) => `
+### ${vuln.package} (${vuln.version})
+- **Severity:** ${vuln.severity.toUpperCase()}
+- **Dependency Type:** ${vuln.isDirect ? 'Direct' : 'Transitive'}${vuln.dependencyPath ? `
+- **Dependency Chain:** ${vuln.dependencyPath.join(' → ')}` : ''}
+- **Description:** ${vuln.description}
+- **CVE:** ${vuln.cve || 'N/A'}
+- **Fixed In:** ${vuln.fixedIn || 'Not specified'}
+        `).join('\n') || 'No vulnerabilities found!';
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `# Package.json Vulnerability Analysis
+
+## Security Summary
+- **Total Vulnerabilities:** ${result.vulnerabilities?.length || 0}
+- **Security Score:** ${result.securityScore}/100
+- **Critical:** ${result.securityMetrics?.critical || 0}
+- **High:** ${result.securityMetrics?.high || 0}
+- **Moderate:** ${result.securityMetrics?.moderate || 0}
+- **Low:** ${result.securityMetrics?.low || 0}
+
+## Vulnerabilities Found
+${formattedVulns}
+
+**Session ID:** ${result.sessionId}
+For detailed analysis with dependency hierarchy tracking, visit: http://127.0.0.1:5000`
+            }
+          ]
+        };
+      }
+
+      case 'analyze_single_package': {
+        const { packageName, version } = args;
+        
+        if (!packageName || typeof packageName !== 'string') {
+          throw new McpError(ErrorCode.InvalidParams, 'Invalid package name provided');
+        }
+
+        // Validate API connection
+        const isConnected = await validateApiConnection();
+        if (!isConnected) {
+          throw new McpError(ErrorCode.InternalError, 'Unable to connect to DepGuard AI API. Please ensure the server is running on http://127.0.0.1:5000');
+        }
+
+        // Get package details
+        const packageResponse = await axios.get(`${DEPGUARD_API_BASE}/api/package-details/${encodeURIComponent(packageName)}`);
+        const packageDetails = packageResponse.data;
+
+        // Create minimal package.json for analysis
+        const testPackageJson = {
+          name: "test-project",
+          version: "1.0.0",
+          dependencies: {
+            [packageName]: version || packageDetails.latestVersion || "latest"
+          }
+        };
+
+        // Analyze for vulnerabilities
+        const analysisResponse = await axios.post(
+          `${DEPGUARD_API_BASE}/api/analyze-json`,
+          { packageJson: testPackageJson },
+          { headers: { 'Content-Type': 'application/json' } }
+        );
+
+        const analysisResult = analysisResponse.data;
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `# Single Package Analysis: ${packageName}
+
+## Package Details
+- **Name:** ${packageDetails.name}
+- **Current Version:** ${packageDetails.currentVersion || version || 'latest'}
+- **Latest Version:** ${packageDetails.latestVersion}
+- **Weekly Downloads:** ${packageDetails.weeklyDownloads?.toLocaleString() || 'N/A'}
+- **Maintenance Status:** ${packageDetails.maintainerStatus}
+- **Has Breaking Changes:** ${packageDetails.hasBreakingChanges ? 'Yes' : 'No'}
+
+${packageDetails.deprecationInfo?.isDeprecated ? `
+## ⚠️ Deprecation Warning
+- **Status:** DEPRECATED
+- **Message:** ${packageDetails.deprecationInfo.message}
+- **Date:** ${packageDetails.deprecationInfo.date}
+
+${packageDetails.alternatives?.length > 0 ? `## Alternative Packages
+${packageDetails.alternatives.map((alt: string) => `- ${alt}`).join('\n')}` : ''}
+` : ''}
+
+## Vulnerability Analysis
+- **Vulnerabilities Found:** ${analysisResult.vulnerabilities?.length || 0}
+- **Security Score:** ${analysisResult.securityScore}/100
+
+${analysisResult.vulnerabilities?.length > 0 ? `
+### Vulnerabilities
+${analysisResult.vulnerabilities.map((vuln: any) => `
+- **${vuln.package}** (${vuln.severity.toUpperCase()})
+  - ${vuln.description}
+  - CVE: ${vuln.cve || 'N/A'}
+  - Fixed In: ${vuln.fixedIn || 'Not specified'}
+`).join('\n')}
+` : '✅ No vulnerabilities found in this package!'}
+
+For detailed analysis and migration guidance, visit: http://127.0.0.1:5000`
+            }
+          ]
+        };
+      }
+
+      case 'check_dependency_hierarchy': {
+        const { packageJsonContent, targetPackage } = args;
+        
+        if (!packageJsonContent || typeof packageJsonContent !== 'string') {
+          throw new McpError(ErrorCode.InvalidParams, 'Invalid package.json content provided');
+        }
+        
+        if (!targetPackage || typeof targetPackage !== 'string') {
+          throw new McpError(ErrorCode.InvalidParams, 'Invalid target package provided');
+        }
+
+        let packageJson;
+        try {
+          packageJson = JSON.parse(packageJsonContent);
+        } catch (parseError) {
+          throw new McpError(ErrorCode.InvalidParams, 'Invalid JSON in package.json content');
+        }
+
+        const directDeps = packageJson.dependencies || {};
+        const devDeps = packageJson.devDependencies || {};
+        const peerDeps = packageJson.peerDependencies || {};
+        
+        const isDirect = !!(directDeps[targetPackage] || devDeps[targetPackage] || peerDeps[targetPackage]);
+        
+        let dependencyType = 'transitive';
+        if (directDeps[targetPackage]) dependencyType = 'direct (production)';
+        else if (devDeps[targetPackage]) dependencyType = 'direct (development)';
+        else if (peerDeps[targetPackage]) dependencyType = 'direct (peer)';
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `# Dependency Hierarchy Analysis
+
+## Package: ${targetPackage}
+- **Type:** ${dependencyType}
+- **Is Direct Dependency:** ${isDirect ? 'Yes' : 'No'}
+
+${isDirect ? `
+## Resolution Strategy
+Since this is a direct dependency, you can:
+1. Update the package directly in your package.json
+2. Run \`npm update ${targetPackage}\` to get the latest compatible version
+3. Run \`npm install ${targetPackage}@latest\` to upgrade to the latest version
+
+` : `
+## Resolution Strategy
+Since this is a transitive dependency, you should:
+1. Check which of your direct dependencies requires this package
+2. Update the parent dependency to a version that uses a secure version
+3. Use \`npm audit fix\` to automatically resolve if possible
+4. Consider using npm overrides to force a specific version if needed
+
+## Finding Parent Dependencies
+Run these commands to find which packages depend on ${targetPackage}:
+\`\`\`bash
+npm ls ${targetPackage}
+npm why ${targetPackage}
+\`\`\`
+`}
+
+For visual dependency hierarchy tracking, visit: http://127.0.0.1:5000`
+            }
+          ]
+        };
+      }
+
+      case 'get_alternative_packages': {
+        const { packageName } = args;
+        
+        if (!packageName || typeof packageName !== 'string') {
+          throw new McpError(ErrorCode.InvalidParams, 'Invalid package name provided');
+        }
+
+        // Validate API connection
+        const isConnected = await validateApiConnection();
+        if (!isConnected) {
+          throw new McpError(ErrorCode.InternalError, 'Unable to connect to DepGuard AI API. Please ensure the server is running on http://127.0.0.1:5000');
+        }
+
+        const packageResponse = await axios.get(`${DEPGUARD_API_BASE}/api/package-details/${encodeURIComponent(packageName)}`);
+        const packageDetails = packageResponse.data;
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `# Alternative Packages for ${packageName}
+
+## Package Status
+- **Maintenance Status:** ${packageDetails.maintainerStatus}
+${packageDetails.deprecationInfo?.isDeprecated ? `- **Deprecated:** Yes (${packageDetails.deprecationInfo.date})
+- **Deprecation Message:** ${packageDetails.deprecationInfo.message}` : '- **Deprecated:** No'}
+
+${packageDetails.alternatives?.length > 0 ? `
+## Recommended Alternatives
+
+${packageDetails.alternatives.map((alt: string, index: number) => `
+### ${index + 1}. ${alt}
+- Install: \`npm install ${alt}\`
+- Migration guidance available at: http://127.0.0.1:5000
+`).join('\n')}
+
+## Migration Steps
+1. **Research**: Check the documentation of the alternative package
+2. **Test**: Create a feature branch and implement the alternative
+3. **Update**: Replace imports and update usage patterns
+4. **Verify**: Run your tests to ensure everything works
+5. **Deploy**: Merge changes after thorough testing
+
+` : `
+## No Alternatives Found
+No specific alternative packages are available in our database for ${packageName}.
+
+## General Recommendations
+1. Search npm for similar packages: https://www.npmjs.com/search?q=${encodeURIComponent(packageName)}
+2. Check GitHub for forks or maintained alternatives
+3. Consider building a custom solution if the package is simple
+4. Look for packages with similar functionality but different approaches
+`}
+
+For detailed migration guidance and code examples, visit: http://127.0.0.1:5000`
             }
           ]
         };
